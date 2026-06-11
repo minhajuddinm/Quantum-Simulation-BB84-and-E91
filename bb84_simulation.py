@@ -1,0 +1,82 @@
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+import numpy as np
+
+def generate_bb84_states(num_qubits):
+    # Alice generates random bits and random bases (0 for Z, 1 for X)
+    alice_bits = np.random.randint(2, size=num_qubits)
+    alice_bases = np.random.randint(2, size=num_qubits)
+    
+    # Bob generates random measurement bases
+    bob_bases = np.random.randint(2, size=num_qubits)
+    
+    qc = QuantumCircuit(num_qubits, num_qubits)
+    
+    # Alice's Encoding
+    for i in range(num_qubits):
+        if alice_bits[i] == 1:
+            qc.x(i) # Bit flip for state |1>
+        if alice_bases[i] == 1:
+            qc.h(i) # Change to X basis
+            
+    qc.barrier()
+    
+    # Quantum Channel (Noise will be injected here later)
+    
+    qc.barrier()
+    
+    # Bob's Measurement
+    for i in range(num_qubits):
+        if bob_bases[i] == 1:
+            qc.h(i) # Change to X basis for measurement
+        qc.measure(i, i)
+        
+    return qc, alice_bits, alice_bases, bob_bases
+
+# Example execution
+num_qubits = 10
+qc, alice_bits, alice_bases, bob_bases = generate_bb84_states(num_qubits)
+
+# Run simulation
+simulator = AerSimulator()
+result = simulator.run(qc, shots=1).result()
+counts = result.get_counts()
+measured_bits = list(counts.keys())[0][::-1] # Reverse string to match qubit order
+
+print("Alice Bits:  ", alice_bits)
+print("Alice Bases: ", alice_bases)
+print("Bob Bases:   ", bob_bases)
+print("Bob Measured:", [int(b) for b in measured_bits])
+
+def sift_keys(alice_bits, alice_bases, bob_bases, bob_measured_bits):
+    sifted_key_alice = []
+    sifted_key_bob = []
+    
+    # Compare bases and keep bits where bases match
+    for i in range(len(alice_bases)):
+        if alice_bases[i] == bob_bases[i]:
+            sifted_key_alice.append(alice_bits[i])
+            sifted_key_bob.append(bob_measured_bits[i])
+            
+    return sifted_key_alice, sifted_key_bob
+
+# Run the sifting process (using the variables from your previous code block)
+alice_key, bob_key = sift_keys(alice_bits, alice_bases, bob_bases, [int(b) for b in measured_bits])
+
+print("\n--- SIFTING PHASE ---")
+print("Alice's Sifted Key:", alice_key)
+print("Bob's Sifted Key:  ", bob_key)
+
+# Calculate Quantum Bit Error Rate (QBER)
+errors = 0
+for i in range(len(alice_key)):
+    if alice_key[i] != bob_key[i]:
+        errors += 1
+
+if len(alice_key) > 0:
+    qber = errors / len(alice_key)
+else:
+    qber = 0.0
+
+print(f"Errors in sifted key: {errors}")
+print(f"Baseline QBER: {qber * 100}%")
