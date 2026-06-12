@@ -367,6 +367,8 @@ def estimate_detection_rates(protocol, trials, num_qubits, p_noise, f_eve, qber_
 # EXPERIMENT CHECKS (Run and verify these)
 # ==========================================
 if __name__ == "__main__":
+    import csv
+    import time
     from qiskit_ibm_runtime import QiskitRuntimeService
     from qiskit_aer.noise import NoiseModel
 
@@ -376,12 +378,67 @@ if __name__ == "__main__":
     real_noise_model = NoiseModel.from_backend(backend)
     print("Noise model loaded successfully!\n")
 
-    print("--- Check 9a: BB84 Device Noise (No Eve) ---")
-    mq, sq, mskr, sskr = monte_carlo_bb84(trials=20, num_qubits=1000, p_noise=0.0, f_eve=0.0, seed=42, device_noise_model=real_noise_model)
-    print(f"BB84 Device QBER: {mq*100:.2f}% (Expected small but > 0%)")
-    print(f"BB84 Device SKR:  {mskr:.4f}")
+    # ==========================================
+    # OVERNIGHT RUN PARAMETERS
+    # ==========================================
+    TRIALS = 50           # Monte Carlo trials per data point
+    STD_QUBITS = 1000     # Key length for BB84 and Six-State
+    E91_PAIRS = 8192      # Pairs needed for accurate CHSH statistics
+    
+    QBER_THRESHOLD = 0.11 # 11% abort threshold
+    CHSH_THRESHOLD = 2.2  # Margin above 2.0 to account for hardware noise
 
-    print("\n--- Check 9b: E91 Device Noise (No Eve) ---")
-    ms, ss, mq, sq, mskr, sskr = monte_carlo_e91(trials=10, num_pairs=8192, p_noise=0.0, f_eve=0.0, seed=42, device_noise_model=real_noise_model)
-    print(f"E91 Device CHSH S: {ms:.4f} (Expected > 2.0 but < 2.828)")
-    print(f"E91 Device QBER:   {mq*100:.2f}%")
+    protocols = ["BB84", "Six-State", "E91"]
+    
+    noise_profiles = {
+        "Ideal": {"p_noise": 0.0, "model": None},
+        "Low_Noise": {"p_noise": 0.05, "model": None},
+        "Threshold_Noise": {"p_noise": 0.22, "model": None},
+        "IBM_Marrakesh": {"p_noise": 0.0, "model": real_noise_model}
+    }
+    
+    f_eve_sweep = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+
+    # Initialize CSV
+    csv_filename = "qkd_results.csv"
+    with open(csv_filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        # Write CSV Header
+        writer.writerow(["Protocol", "Noise_Profile", "F_Eve", "Mean_QBER_or_S", "Std_QBER_or_S", "Mean_SKR", "Std_SKR", "FPR", "FNR"])
+
+    print(f"Starting Full Experiment Sweep. Results will stream to {csv_filename}...")
+    start_time = time.time()
+
+    # Master Execution Loop
+    for proto in protocols:
+        print(f"\n========== RUNNING PROTOCOL: {proto} ==========")
+        num_q = E91_PAIRS if proto == "E91" else STD_QUBITS
+
+        for noise_name, params in noise_profiles.items():
+            print(f"  -> Noise Profile: {noise_name}")
+            p = params["p_noise"]
+            model = params["model"]
+
+            for f in f_eve_sweep:
+                # 1. Run Monte Carlo for Key Rates and QBER/S
+                if proto == "BB84":
+                    mq, sq, mskr, sskr = monte_carlo_bb84(TRIALS, num_q, p, f, None, model)
+                elif proto == "Six-State":
+                    mq, sq, mskr, sskr = monte_carlo_six_state(TRIALS, num_q, p, f, None, model)
+                elif proto == "E91":
+                    ms, ss, mq, sq, mskr, sskr = monte_carlo_e91(TRIALS, num_q, p, f, None, model)
+                    mq, sq = ms, ss # For E91, we track S as the primary detection metric in the CSV
+
+                # 2. Run Estimator for FPR and FNR
+                fpr, fnr = estimate_detection_rates(proto, TRIALS, num_q, p, f, QBER_THRESHOLD, CHSH_THRESHOLD, model)
+
+                # 3. Log to Console & Append to CSV
+                print(f"      f={f:.1f} | Metric: {mq:.4f} | SKR: {mskr:.4f} | FPR: {fpr:.2f} | FNR: {fnr:.2f}")
+                
+                with open(csv_filename, mode='a', newline='') as file:
+                    writer = csv.writer(file)
+                    writer.writerow([proto, noise_name, f, mq, sq, mskr, sskr, fpr, fnr])
+
+    elapsed = (time.time() - start_time) / 60
+    print(f"\nEXPERIMENT COMPLETE! Total elapsed time: {elapsed:.2f} minutes.")
+    print(f"All data saved to {csv_filename}. You are ready to plot your figures!")
