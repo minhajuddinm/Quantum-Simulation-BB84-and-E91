@@ -1,0 +1,2 @@
+Comparison,F_Eve,Channel,N_per_group,Mean_FNR_SixState,Mean_FNR_BB84,Welch_t,dof,p_value
+SixState_vs_BB84_FNR,0.5,Ideal_0%,200,0.505,0.8,-6.4993491303544335,379.7113141711983,2.53886422545288e-10

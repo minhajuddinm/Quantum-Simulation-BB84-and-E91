@@ -1,0 +1,1116 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{stfloats}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\graphicspath{{figures/}{./}}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage{orcidlink}
+\hypersetup{hidelinks}
+\usepackage{xcolor}
+\usepackage{pifont}
+\newcommand{\ket}[1]{\left|#1\right\rangle}
+\newcommand{\bra}[1]{\left\langle#1\right|}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Noise-Aware Simulation and Statistical Eavesdropping Detection in BB84, Six-State, and E91 Quantum Key Distribution Protocols\\
+}
+
+\author{
+\IEEEauthorblockN{1\textsuperscript{st} Vidhi \orcidlink{0009-0002-8289-3182}}
+\IEEEauthorblockA{\textit{Faculty of Computer Science} \\
+\textit{Algoma University}\\
+Brampton, Canada \\
+vidhi01@algomau.ca}
+\and
+\IEEEauthorblockN{2\textsuperscript{nd} Muhammad Minhajuddin \orcidlink{0009-0003-0305-9497}}
+\IEEEauthorblockA{\textit{Faculty of Computer Science} \\
+\textit{Algoma University}\\
+Brampton, Canada \\
+mminhajuddin@algomau.ca}
+\\[0.5em] 
+\IEEEauthorblockN{4\textsuperscript{th} Ajmery Sultana \orcidlink{0000-0002-8591-026X} }
+\IEEEauthorblockA{\textit{Faculty of Computer Science} \\
+\textit{Algoma University}\\
+Brampton, Canada \\
+ajmery.sultana@algomau.ca}
+\and
+\IEEEauthorblockN{3\textsuperscript{rd} S. M. Riazul Islam \orcidlink{0000-0003-2968-9561}}
+\IEEEauthorblockA{\textit{Dept. of Computing Science} \\.
+\textit{University of Aberdeen} \\
+Aberdeen, United Kingdom\\
+riazul.islam@abdn.ac.uk}
+}
+
+\maketitle
+
+\begin{abstract} The expected arrival of large scale quantum computers
+threatens the security of classical public key cryptosystems such as RSA and
+elliptic curve cryptography, whose security rests on computational hardness
+assumptions that Shor's algorithm can defeat. Quantum Key Distribution (QKD)
+offers an alternative whose security is grounded in the laws of quantum
+mechanics rather than computational difficulty, allowing two parties to detect
+eavesdropping on the channel before a secret key is used. Prior simulation
+studies tend to evaluate single protocols, report a narrow set of metrics, and
+model an eavesdropper that attacks either every transmitted qubit or none. As a
+result, the way different QKD protocols expose a partial eavesdropper, and the
+cost of that detection in terms of usable key, remain poorly characterized. In
+this work, we present a unified Qiskit based study of 3 protocols, the 2
+basis BB84 protocol, the 3 basis six state protocol, and the entanglement
+based E91 protocol, under matched ideal and noisy channel conditions. Beyond the
+standard metrics of Quantum Bit Error Rate (QBER), CHSH inequality violation,
+and secure key rate, we characterize eavesdropping detection statistically
+through the false positive rate and false negative rate, and we extend this
+analysis from full interception to partial intercept and resend, where the
+attacker targets only a fraction of the transmission. This yields, for each
+protocol, a tradeoff between detection performance and secure key rate as a
+function of attack strength and noise. Statistical detection of this kind was
+established for BB84 and recently extended to the six state protocol for prepare
+and measure QKD. We adopt those thresholds and provide the first false positive
+and false negative analysis of entanglement based CHSH detection, together with
+the first comparison of statistical detection across prepare and measure and
+entanglement based protocols within a single framework. The study establishes a
+reproducible environment that can be extended toward larger key lengths and
+real device noise. Across matched ideal channels, a partial attacker who
+intercepts up to 30\% of the transmission evades detection in all
+3 protocols while a positive secret key is still produced, and per session
+detection becomes reliable only near an interception fraction of 1/2, by
+which point the secure key rate has already collapsed. The six state protocol
+closes this stealth window earliest and needs the fewest compared signals to
+suppress false alarms, BB84 is intermediate, and the entanglement based detector
+of E91 is the most evadable and the most fragile to channel noise, with false
+alarms rising sharply once the honest error rate exceeds about 8\%.
+Under the measured \texttt{ibm\_marrakesh} device noise, however, all 3
+protocols operate honestly without false alarms.
+\end{abstract}
+
+\begin{IEEEkeywords}
+ Quantum Key Distribution, BB84, six-state protocol, E91, Qiskit, QBER, CHSH, secure key rate, eavesdropper detection, false positive rate, false negative rate
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Cryptographic systems have long protected sensitive communication by encoding
+plaintext into ciphertext that can only be recovered with the correct key.
+Classical cryptography achieves confidentiality, authenticity, and integrity
+through symmetric and asymmetric schemes such as the Advanced Encryption
+Standard (AES), the Data Encryption Standard (DES), the Rivest Shamir Adleman
+(RSA) algorithm, and Elliptic Curve Cryptography (ECC). The security of these
+schemes depends on the computational difficulty of mathematical problems such
+as integer factorization and the discrete logarithm. For decades, this
+assumption has been sufficient, because no classical algorithm can solve these
+problems efficiently at the key sizes used in practice.
+
+The development of quantum computing changes this picture. Algorithms such as
+Shor's algorithm and Grover's algorithm can solve, or substantially accelerate
+the solution of, the problems on which classical public key cryptography
+depends. A sufficiently large quantum computer would therefore render much of
+the currently deployed asymmetric cryptography insecure. This threat is not
+limited to future communication. In a harvest now, decrypt later attack, an
+adversary records encrypted traffic today and decrypts it once a capable
+quantum computer becomes available, which exposes data that is expected to
+remain confidential for many years. This prospect has motivated an urgent
+search for communication methods that remain secure against quantum
+adversaries.
+
+Quantum Key Distribution (QKD) addresses this problem from a fundamentally
+different direction. Rather than relying on computational hardness, QKD derives
+its security from the laws of quantum mechanics, in particular the no cloning
+theorem and the measurement disturbance principle. Because an unknown quantum
+state cannot be copied, and because any measurement of a quantum state in the
+wrong basis disturbs it, an eavesdropper who attempts to intercept the quantum
+channel inevitably introduces detectable errors. The legitimate parties,
+traditionally called Alice and Bob, can therefore estimate the error rate
+across a portion of their exchanged bits and decide whether the channel is
+secure before deriving a final key. QKD does not transmit the message itself
+over the quantum channel. Instead, it establishes a shared secret key that is
+later used with a conventional encryption scheme, while an authenticated
+classical channel supports basis reconciliation and error checking.
+
+To make the mechanism of QKD concrete, it is useful to recall how quantum
+information is represented and manipulated. The basic unit is the quantum bit,
+or qubit, whose state is a unit vector in a 2 dimensional complex space
+spanned by the computational basis states $\ket{0}$ and $\ket{1}$. Unlike a
+classical bit, a qubit may occupy a superposition $\ket{\psi} = \alpha \ket{0} +
+\beta \ket{1}$, with $|\alpha|^2 + |\beta|^2 = 1$. Measuring it in the
+computational basis returns $0$ with probability $|\alpha|^2$ or $1$ with
+probability $|\beta|^2$, and collapses the state onto whichever outcome occurs.
+Single qubit gates rotate this state, and 3 of them suffice for the
+protocols studied here. The Pauli $X$ gate exchanges $\ket{0}$ and $\ket{1}$,
+acting as a bit flip. The Hadamard gate $H$ maps the computational states to the
+equal superpositions $\ket{+}$ and $\ket{-}$, moving between the two conjugate
+bases that BB84 uses. The phase gate $S$ adds a relative phase, which opens up a
+third measurement basis. These bases are what make the protocols work: a qubit
+gives a deterministic result when measured in the basis it was prepared in, but
+a uniformly random result in a conjugate basis, so an eavesdropper who guesses
+the wrong basis turns her mistake into observable errors. Two qubit gates such
+as the controlled NOT create entanglement, a joint state that cannot be factored
+into separate single qubit states and whose measurement outcomes stay correlated
+no matter how far apart the 2 parties are. Encoding bits into single qubit
+states, measuring them in randomly chosen bases, and testing the correlations of
+entangled pairs are the operations the three protocols are built from, and a
+circuit framework such as Qiskit expresses each one as a gate applied to a
+simulated qubit.
+
+The first and most widely studied QKD protocol, BB84, was introduced by Bennett
+and Brassard in 1984 \cite{bennett1984quantum}. It encodes classical bits into
+the polarization states of single photons using 2 conjugate bases, the
+rectilinear basis at 0 and 90 degrees and the diagonal basis at 45
+and 135 degrees. Alice prepares each qubit in a
+randomly chosen basis, Bob measures each qubit in a randomly chosen basis, and
+the two parties keep only the bits for which their bases agree, a step known as
+sifting or basis reconciliation. The six state protocol generalizes BB84 by
+adding a third mutually unbiased basis, so that Alice and Bob choose among
+3 bases rather than 2. The additional basis lowers the chance that an
+eavesdropper guesses the correct basis. This raises the disturbance an intercept
+and resend attack imposes, from 25\% to 33\%, and
+so improves the prospects for detection. The cost is a lower fraction of
+matching bases, and therefore a shorter sifted key. A complementary
+approach, the E91 protocol proposed by Ekert in 1991 \cite{ekert1991quantum},
+replaces prepare and measure with shared entanglement. A source distributes
+pairs of entangled qubits to Alice and Bob, who measure them along randomly
+chosen axes. The correlations between their outcomes are tested against the
+Clauser Horne Shimony Holt (CHSH) form of Bell's inequality, and a violation of
+this inequality certifies that the entanglement was genuine and that no
+eavesdropper has intercepted the qubits. These 3 protocols span the main
+design choices in discrete variable QKD, namely the number of preparation bases
+and the use of entanglement, which makes them a natural set for a controlled
+comparison.
+
+Although these protocols are well understood theoretically, evaluating their
+behaviour under realistic conditions remains an active research problem.
+Physical QKD hardware is expensive and inaccessible to most researchers, which
+has made circuit level simulation an essential tool for studying protocol
+performance. Open source quantum computing frameworks such as Qiskit allow
+researchers to construct QKD circuits, introduce controlled noise through
+configurable channel models, and measure key performance indicators on
+classical hardware or cloud based simulators. However, existing simulation work
+shares three limitations. First, protocols are usually studied in isolation or,
+when compared, are reported only through coarse metrics such as the raw QBER.
+Second, the statistical analysis of eavesdropping detection through the false
+positive and false negative rates was first developed for BB84 and has recently
+been extended to the six state protocol, but it has never been applied to
+entanglement based detection, where the security check is a Bell CHSH test
+rather than an error rate. Third, although the partial intercept and resend
+attacker that targets only a fraction of the transmission has been studied for
+BB84 and the six state protocol, it has not been applied to entanglement based
+detection, and no work reports the resulting tradeoff between detection
+performance and secure key rate across prepare and measure and entanglement
+based protocols together.
+
+In this work, we address these gaps through a simulation based study of 3
+QKD protocols implemented in Qiskit, whose defining properties are summarized in Table~\ref{tab:protocols}. The contributions of this study are
+summarized as follows.
+\begin{enumerate}
+\item We implement the BB84, six state, and E91 protocols within a single
+Qiskit based framework, covering qubit preparation, basis reconciliation, error
+reconciliation, and privacy amplification, so that the 3 protocols can be
+compared on a common footing under matched ideal, synthetic noise, and real
+device noise conditions.
+\item Beyond the standard metrics of QBER, CHSH violation, and secure key rate,
+we characterize eavesdropping detection statistically through the false positive
+and false negative rates. Statistical detection for prepare and measure
+protocols was established for BB84 by Lee et al. \cite{lee2022eavesdropping} and
+for the six state protocol by Fiorini et al. \cite{fiorini2025sixstate}; we adopt
+these thresholds and, for the first time, extend the false positive and false
+negative analysis to the entanglement based CHSH detection of E91, placing
+prepare and measure and entanglement based detection on a common footing.
+\item We model a partial intercept and resend attacker that targets a tunable
+fraction of the transmission, and we determine for each protocol the attack
+strength at which detection becomes unreliable, producing a tradeoff between
+detection performance and secure key rate as a function of attack strength and
+noise.
+\end{enumerate}
+
+The rest of this paper is organized as follows. Section II reviews the related
+work on QKD simulation, implementation, and security analysis. Section III
+provides the necessary background on the BB84, six state, and E91 protocols and
+the simulation environment. Section IV presents the simulation pipeline and the
+performance metrics used in the evaluation. Section V presents the experimental
+results and discussion.
+Finally, Section VI concludes the paper and outlines directions for future
+work.
+
+\begin{table}[!ht]
+\caption{Summary of the Three QKD Protocols Compared in This Work}
+\label{tab:protocols}
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.4}
+\footnotesize
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Property} & \textbf{BB84} & \textbf{Six-State} & \textbf{E91} \\ \hline
+Type & \multicolumn{2}{c|}{Prepare-and-measure} & Entanglement \\ \hline
+Bases / settings & $Z, X$ & $Z, X, Y$ & Random axes \\ \hline
+Sifting ratio & $\approx 1/2$ & $\approx 1/3$ & Matched axes \\ \hline
+Full-attack signal & $25\%$ QBER & $33\%$ QBER & $S \to 1.41$ \\ \hline
+Detection signal & QBER & QBER & CHSH $S$ \\ \hline
+Detection threshold & $0.135$ & $0.167$ & $S = 2$ \\ \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Related Work}
+Quantum Key Distribution has attracted sustained research attention as
+classical cryptography faces the prospect of quantum attacks. This section
+reviews prior work on the simulation, implementation, and security analysis of
+QKD protocols, with a focus on BB84 and E91. We organize the discussion into
+4 themes. We first consider studies that implement both protocols together,
+then studies that focus on a single protocol, then work on security analysis
+and attack models, and finally simulation frameworks that support QKD research.
+Table~\ref{tab:relatedwork} summarizes how these studies compare against the
+present work across a set of representative features.
+
+\subsection{Combined BB84 and E91 Implementations}
+A small number of studies evaluate BB84 and E91 together, which makes them the
+closest precedents for the present work. Ain et al. \cite{ain2025novel}
+proposed an enhanced BB84 scheme that uses 9, 12, and 16 qubits
+across 2 and 3 bases, including computational, Hadamard, and diagonal
+bases, in order to strengthen security against brute force and intercept and
+resend attacks. Their study reports that increasing the qubit count makes it
+progressively harder for an eavesdropper to correctly guess both the
+transmitted state and the measurement basis, which raises the probability of
+detection. They further implemented the E91 protocol on the IBM Quantum
+Experience platform and introduced a reverse gate configuration that collapses
+the computational basis state from one form to another and attaches a
+misleading phase angle, so that an intercepted state yields deceptive
+information to the attacker. To handle the additional noise introduced by the
+2 qubit gates that entanglement requires, they applied error mitigation
+during the final measurement. Their results, gathered through Qiskit
+simulations with 1024 shots, show fluctuations in the
+measured probabilities that reveal eavesdropping and confirm that the 16
+qubit configuration provides the lowest information leakage. Dhakal et al.
+\cite{dhakal2025performance} provided a further direct precedent, evaluating
+BB84, E91, and an enhanced BB84 variant in Qiskit under several noise models,
+including depolarising, thermal relaxation, Pauli, amplitude damping, and phase
+damping channels, across key lengths ranging from 200 to 3000
+bits. Their study used the QBER and the CHSH violation as the primary
+evaluation metrics and emphasized the trade off between security and efficiency
+across the 3 protocols.
+
+\begin{table*}[t]
+\caption{Comparison of Related Work on QKD Simulation and Analysis}
+\begin{center}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.7}
+\footnotesize
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{|l|c|c|c|c|c|c|c|c|c|c|c|c|c|}
+\hline
+\textbf{Feature} &
+\cite{ain2025novel} &
+\cite{dhakal2025performance} &
+\cite{saeed2022implementation} &
+\cite{kadir2025e91} &
+\cite{mariani2024simulation} &
+\cite{lee2022eavesdropping} &
+\cite{bechmann1999incoherent} &
+\cite{singh2021role} &
+\cite{diadamo2021qunetsim} &
+\cite{fiorini2024estimating} &
+\cite{fiorini2025sixstate} &
+\cite{fiorini2026threshold} &
+\textbf{Our Work} \\ \hline
+Implements BB84             & \ding{51} & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{55} & \ding{51} & \ding{51} \\ \hline
+Six-state protocol          & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{55} & \ding{51} \\ \hline
+Implements E91              & \ding{51} & \ding{51} & \ding{55} & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\ \hline
+Noise Modeling              & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} \\ \hline
+QBER / CHSH                 & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{51} & \ding{55} & \ding{51} & \ding{51} & \ding{51} & \ding{51} \\ \hline
+Secure Key Rate             & \ding{55} & \ding{51} & \ding{55} & \ding{51} & \ding{51} & \ding{55} & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\ \hline
+FPR / FNR Detection         & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{51} & \ding{51} \\ \hline
+FPR / FNR for E91           & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\ \hline
+Partial Intercept Attack    & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} & \ding{51} & \ding{51} & \ding{51} \\ \hline
+Multi-protocol Comparison   & \ding{51} & \ding{51} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{55} & \ding{51} \\ \hline
+\end{tabular}%
+}
+\end{center}
+\label{tab:relatedwork}
+\end{table*}
+
+\subsection{Single Protocol Simulations}
+Several studies focus on a single protocol. Saeed et al.
+\cite{saeed2022implementation} presented one of the first published quantum
+circuits for BB84 in Qiskit, simulating the protocol both with and without an
+eavesdropper on a local simulator and on an IBM cloud simulator. They
+established the presence of an eavesdropper by observing how the probability
+distributions of the measured outcomes shift when interception occurs, and they
+discard and regenerate the key when this shift indicates a compromised
+exchange. On the entanglement based side, Kadir and Hossain \cite{kadir2025e91}
+simulated E91 on the Qiskit AerSimulator, with a third party preparing singlet
+states and Alice and Bob each choosing randomly among 3 measurement bases.
+They reported a CHSH parameter of 2.47, which exceeds the
+classical bound of 2 and confirms a genuine Bell violation, and showed that
+the key generation rate rises with the number of singlet states, reaching about
+12 bits per second for 500 pairs. Mariani et al. \cite{mariani2024simulation} implemented the complete E91
+protocol on the IBM Quantum platform using a depolarizing noise channel and
+incorporated the classical post processing stages of error correction and
+privacy amplification. In their channel model the depolarizing strength maps to
+an expected QBER of 1/2 its value, and they concentrated their analysis on the
+region around a 10\% error rate, near the level at which key distillation
+becomes marginal. By modeling the protocol end to end, including these
+post processing steps, they positioned their implementation as a reusable tool
+for studying not only point to point QKD but also more complex systems that
+rely on QKD for security. Badiezadegan \cite{badiezadegan2026bb84} described a
+single protocol BB84 implementation that models qubits as explicit state
+vectors and carries the protocol through the full classical pipeline, including
+parity based block error reconciliation and binary entropy based privacy
+amplification. While that work is educational and treats BB84 alone, its
+post processing stages provide a concrete reference for the reconciliation and
+privacy amplification steps required to compute a realistic secure key rate.
+
+\subsection{Security Analysis and Attack Models}
+A further body of work analyzes the security of QKD protocols and the attacks
+to which they are exposed. Lee et al. \cite{lee2022eavesdropping} provided the
+most directly relevant analysis, studying eavesdropping detection in BB84 as a
+statistical decision problem. Using Hoeffding's inequality they derived upper
+bounds on the false positive rate and false negative rate of detection, where
+an eavesdropper is declared whenever the measured QBER reaches a threshold. By
+choosing the threshold that minimizes the combined bound, an optimal value near
+a QBER of $0.135$, they showed that comparing about 300 qubits keeps
+both error rates below roughly 0.009\%. They also proposed a grouped BB84 variant for rapidly
+varying channels. Their analysis is confined to BB84 and to an attacker that
+intercepts every qubit, and they explicitly leave 3 problems open, namely
+the evaluation of exact rather than upper bound error rates, the case of an
+attacker that intercepts only part of the transmission, and the resulting
+tradeoff between detection performance and secret key rate.
+
+A closely related line of work by Fiorini, Garroppo, Pagano, and collaborators
+develops statistical eavesdropper detection for prepare and measure protocols
+under a partial intercept and resend attack, and is the closest precedent to the
+prepare and measure portion of the present study. They first studied the
+estimation of the interception density in BB84 using a noisy Qiskit simulator
+\cite{fiorini2024estimating}, then derived two optimal QBER thresholds for the
+six state protocol that minimize the false positive and false negative rates,
+one from upper Hoeffding bounds and one from a limiting probability density
+approach, validated on backends inspired by real IBM devices
+\cite{fiorini2025sixstate}. A subsequent work proposed a BB84 threshold in which
+the two communicating parties agree on the maximum fraction of key bits the
+attacker may correctly intercept, removing the dependence on an estimated
+interception density and setting the threshold from the system noise and the
+application's security requirements \cite{fiorini2026threshold}. We adopt the
+threshold construction of this line for BB84 and the six state protocol and
+extend the analysis to entanglement based detection, which it does not consider.
+
+The statistical disturbance signature that this detection exploits for the six
+state protocol was established by Bechmann-Pasquinucci and Gisin
+\cite{bechmann1999incoherent}, who classified the incoherent and coherent
+eavesdropping strategies available against the 3 basis protocol and showed
+that the additional mutually unbiased basis raises the disturbance an
+intercept and resend attacker imposes relative to BB84. Their analysis provides
+the theoretical basis for the larger error signal that makes six state detection
+more sensitive, which the present work measures empirically as a false positive
+and false negative rate. Complementing this statistical view of prepare and
+measure detection, Singh et al. \cite{singh2021role} analyzed the relationship
+between the Bell-CHSH violation and the secure key rate of entanglement based QKD
+through a geometric representation of 2 qubit correlations. They showed that a
+violation of the CHSH inequality is a necessary boundary for distilling a secret
+key, though it is not on its own sufficient, since states exist that violate the
+inequality yet yield no usable key, and others that yield a key only after local
+filtering. Their result grounds the use of the classical bound of 2 as the
+security relevant decision boundary for the CHSH based detection of E91 in the
+present study, and it clarifies that crossing this boundary marks the point
+beyond which the entanglement can no longer certify a secure key.
+Fei et al. \cite{fei2018quantum} demonstrated a quantum man in the middle attack
+that targets the calibration process of a BB84 system rather than the key
+exchange itself. By intercepting calibration signals and resending faked ones,
+the attacker induces a detector efficiency mismatch that opens a side channel,
+and the authors proposed 2 countermeasures to remove this vulnerability. These
+studies highlight that the security of QKD in practice depends not only on the
+idealized protocol but also on the physical implementation and its supporting
+procedures, which is relevant to any simulation that aims to model realistic
+conditions.
+
+\subsection{Simulation Frameworks}
+Beyond protocol specific work, several frameworks support QKD research at the
+network and circuit level. DiAdamo et al. \cite{diadamo2021qunetsim} introduced
+QuNetSim, a Python framework for simulating quantum networks at the network
+layer that incorporates many known quantum networking protocols and allows
+users to build and test protocols, including QKD, over a range of network
+configurations. Li et al. \cite{li2022pulse} extended the Quantum Toolbox in
+Python with pulse level simulation of noisy circuits, enabling the modeling of
+environment induced decoherence and control pulse noise that is relevant to
+characterizing protocol behaviour on noisy intermediate scale quantum devices.
+At the system level, Zeng et al. \cite{zeng2024towards} examined how QKD and
+post quantum cryptography can be combined into hybrid schemes, weighing the
+advantages and limitations of each approach and motivating the broader context
+in which QKD protocols are expected to be deployed.
+
+\subsection{Research Gap}
+As summarized in Table~\ref{tab:relatedwork}, prior work has progressively built
+the statistical detection picture for prepare and measure QKD but has left
+entanglement based detection and the cross protocol comparison untouched. Lee et
+al. \cite{lee2022eavesdropping} cast eavesdropping detection in BB84 as a
+statistical decision problem and bounded the false positive and false negative
+rates under a full interception attack. Fiorini et al. extended this line to a
+realistic partial intercept and resend attacker, first estimating the
+interception density in BB84 \cite{fiorini2024estimating}, then deriving optimal
+false positive and false negative thresholds for the six state protocol under
+channel noise \cite{fiorini2025sixstate}, and then proposing a refined BB84
+threshold independent of the attacker's interception density
+\cite{fiorini2026threshold}. These works are confined to prepare and measure
+protocols and to the QBER as the detection signal. The theoretical analysis of
+entanglement based security \cite{singh2021role} characterizes the CHSH
+violation as a necessary boundary for a secret key but does not cast it as an
+empirical detection test with measurable error rates. No prior work reports the
+false positive and false negative rates of the entanglement based CHSH detector,
+places prepare and measure and entanglement based detection within a single
+framework under a matched partial attacker, or characterizes the resulting
+tradeoff between detection performance and secure key rate across the three
+protocols. The present work addresses these gaps: we adopt the established BB84
+and six state thresholds, extend the false positive and false negative analysis
+to the CHSH detection of E91 for the first time, and compare all three protocols
+on the detection versus key rate tradeoff as the attack strength varies.
+
+\section{System Model}
+This section describes the three protocols and the threat and noise models used
+throughout the study. All protocols share the same setting. Two legitimate
+parties, Alice and Bob, are connected by a quantum channel that carries qubits
+and by an authenticated classical channel that carries reconciliation messages.
+An eavesdropper, Eve, has full access to the quantum channel and may intercept
+qubits, but cannot tamper with the authenticated classical channel. This common setting is summarized in Fig.~\ref{fig:system}. Each
+protocol is implemented as a quantum circuit in Qiskit and executed on the Aer
+simulator, with noise introduced as described in Section~\ref{subsec:noise}.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_system_model.pdf}
+\caption{System and threat model. Alice and Bob share a quantum channel carrying
+qubits or entangled pairs and an authenticated classical channel for sifting,
+reconciliation, and parameter estimation. Eve runs an intercept-and-resend attack on
+a fraction $f$ of the quantum channel and may read but not alter the classical
+channel.}
+\label{fig:system}
+\end{figure}
+
+\subsection{BB84 Protocol}
+
+In BB84, Alice generates 2 independent random bit strings, one that sets the
+key bit and one that selects the preparation basis. For each position she
+encodes the key bit in either the rectilinear basis $Z = \{\ket{0}, \ket{1}\}$
+or the diagonal basis $X = \{\ket{+}, \ket{-}\}$. A bit value of one is encoded
+by an $X$ gate, and a choice of the diagonal basis is realized by a Hadamard
+gate $H$, so that the prepared state is one of the 4 signal states $\ket{0},
+\ket{1}, \ket{+}, \ket{-}$, as shown in the BB84 circuit of Fig.~\ref{fig:circ_bb84}. These 4 states form 2 conjugate, or mutually
+unbiased, bases, meaning that a state prepared in one basis yields a completely
+random outcome when measured in the other. The protocol proceeds in 2 phases.
+In the quantum phase, Alice transmits the prepared qubits one by one over the
+quantum channel. Bob selects an independent random basis for each qubit,
+applying a Hadamard gate before measurement when he chooses the diagonal basis
+and measuring in the computational basis otherwise. In the classical phase,
+carried out over the authenticated public channel, Alice and Bob announce their
+basis choices, keep only the positions where the bases agree, and discard the
+rest. This step, called sifting or basis reconciliation, yields a shared sifted
+key. Because the two bases are chosen independently and uniformly, they agree on
+about 1/2 of the positions, so the expected sifting ratio is 1/2.
+
+The security of BB84 rests on 2 principles of quantum mechanics. The no
+cloning theorem forbids an eavesdropper from copying an unknown qubit, so she
+cannot keep a copy and forward the original untouched. The measurement
+disturbance principle then ensures that any measurement she performs in the
+wrong basis randomizes the state she resends. As a result, an eavesdropper who does
+not know the preparation basis inevitably introduces discrepancies between
+Alice's and Bob's sifted bits, which the parties detect by comparing a random
+sample and estimating the error rate. If that rate is low enough, the remaining
+sifted bits are passed to error reconciliation and privacy amplification to
+produce the final secret key; if it is too high, the exchange is aborted.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_circuit_bb84.pdf}
+\caption{BB84 circuit for a single qubit. Alice encodes a random bit with $X$ and selects a basis with $H$; Eve, applied with probability $f$, intercepts, measures, and resends; the channel applies depolarizing noise $\mathcal{N}_p$; Bob rotates to his random basis and measures. The $H$ gates act only for the diagonal ($X$) basis.}
+\label{fig:circ_bb84}
+\end{figure}
+
+\subsection{Six-State Protocol}
+
+The six state protocol generalizes BB84 by adding the third mutually unbiased
+basis $Y = \{\ket{+i}, \ket{-i}\}$, whose states are $\ket{\pm i} = (\ket{0} \pm
+i\ket{1})/\sqrt{2}$, so that Alice and Bob each select uniformly among the 3
+bases $Z$, $X$, and $Y$. These 3 bases are the eigenbases of the Pauli
+operators and are pairwise conjugate, which makes them the complete set of
+mutually unbiased bases available to a single qubit; Fig.~\ref{fig:basis} contrasts them with the two bases of BB84. Preparation in the $Y$
+basis is obtained from the computational basis by the gate sequence $S H$, and
+measurement in the $Y$ basis by the inverse sequence $H S^{\dagger}$, where $S$
+is the phase gate. Preparation and measurement in the $Z$ and $X$ bases are
+identical to BB84. The full circuit is shown in
+Fig.~\ref{fig:circ_sixstate}. All remaining steps, sifting and classical post processing,
+are unchanged. Two consequences follow from the additional basis. First, because
+Alice and Bob now choose independently among 3 bases, they agree on only
+about 1/3 of the positions, so the sifting ratio falls from 1/2 to
+1/3 and the protocol yields fewer key bits per transmitted qubit. Second,
+an eavesdropper performing an intercept and resend attack must guess among 3
+bases rather than 2, so she chooses correctly less often and disturbs the
+state more frequently when she is wrong. The expected error she imposes on the
+sifted key therefore rises from 25\% for BB84 to about 33
+\% for the six state protocol. The six state protocol thus trades key
+yield for a stronger and more visible response to eavesdropping, and this
+explicit tension between efficiency and detectability is the property that
+motivates its inclusion in this comparison.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.9\columnwidth]{Figures/fig_basis_mub.pdf}
+\caption{Measurement bases as axes on the Bloch sphere. BB84 uses two mutually unbiased bases, $Z$ and $X$; the six-state protocol adds the third, $Y$. The extra basis raises the intercept-and-resend disturbance from $25\%$ to $33\%$ at the cost of a smaller sifted key.}
+\label{fig:basis}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_circuit_sixstate.pdf}
+\caption{Six-state circuit for a single qubit. The third basis $Y$ is prepared with $SH$ and measured with $S^{\dagger}H$, while the $Z$ and $X$ bases are as in BB84. Eve and the channel act as in Fig.~\ref{fig:circ_bb84}.}
+\label{fig:circ_sixstate}
+\end{figure}
+\subsection{E91 Protocol}
+
+The E91 protocol replaces prepared single qubits with shared entanglement and
+derives its security from a Bell test rather than from basis disturbance. For
+each round a source prepares a maximally entangled Bell pair. A Hadamard gate on
+the first qubit, followed by a controlled NOT gate onto the second, produces the
+state $(\ket{00} + \ket{11})/\sqrt{2}$. The source sends one qubit to Alice and
+one to Bob, as shown in Fig.~\ref{fig:circ_e91}. Because the pair is entangled, a measurement on
+one qubit instantaneously fixes the correlated outcome of the other, no matter
+how far apart the 2 parties are. Alice and Bob each measure their qubit along
+an independently and randomly chosen axis, implemented as a $R_y$ rotation that
+selects the measurement angle followed by a computational basis measurement.
+Their chosen angles fall into 2 groups. When their axes are aligned, their
+outcomes are strongly correlated and the corresponding bits are kept to form the
+shared key, which plays the role that the matched basis positions play in BB84.
+When their axes differ in the prescribed way, the outcomes are used not for key
+generation but to estimate the CHSH quantity
+\begin{equation}
+S = E(a, b) - E(a, b') + E(a', b) + E(a', b'),
+\label{eq:chsh}
+\end{equation}
+where $a, a'$ and $b, b'$ are Alice's and Bob's alternative measurement axes and
+$E(\cdot, \cdot)$ is the correlation between their outcomes for a given pair of
+axes, defined as the average of the product of the $\pm 1$ outcomes. For a
+genuinely entangled pair measured at the optimal angles, $S$ can reach the
+Tsirelson bound $2\sqrt{2} \approx 2.83$, whereas any classical or local hidden
+variable description obeys the bound $S \leq 2$. A measured value of $S$ above
+2 therefore certifies that genuine entanglement survived transmission. An
+eavesdropper who intercepts and measures a qubit destroys part of this
+entanglement, which weakens the correlations and drives $S$ back toward the
+classical bound, so the collapse of $S$ toward two is the signature that the
+channel has been disturbed. This entanglement based check is appealing because
+it tests the physical resource that secures the key directly, rather than
+inferring an attack from an error rate alone.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_circuit_e91.pdf}
+\caption{E91 circuit. A Bell pair is created with $H$ and CNOT and shared between Alice and Bob; the channel applies $\mathcal{N}_p$; Eve, with probability $f$, measures Bob's qubit along a random axis and resends; Alice and Bob measure along randomly chosen axes $R_y(a)$ and $R_y(b)$. Matched axes form the key and the remaining settings estimate $S$.}
+\label{fig:circ_e91}
+\end{figure}
+
+\subsection{Threat Model: Partial Intercept and Resend}
+\label{subsec:threat}
+We adopt the intercept and resend attack as the adversary model. For an attacked
+qubit, Eve measures in a randomly chosen basis and forwards a freshly prepared
+qubit consistent with her outcome, which disturbs the state whenever her basis
+differs from the preparation basis. Following the partial intercept and resend
+model introduced for BB84 by Fiorini et al. \cite{fiorini2024estimating} and
+applied by them to the six state protocol \cite{fiorini2025sixstate}, we
+parameterize the attack by an interception fraction $f \in [0, 1]$, so that Eve
+attacks each qubit, or each entangled pair, independently with probability $f$.
+The case $f = 1$ recovers the full attack studied in prior work, while
+intermediate values model an adversary that limits her interference to remain
+below the detection threshold. We apply this attacker for the first time to the
+entanglement based E91 protocol, so that a single adversary model can be compared
+across all three protocols. For E91, interception of one member of a pair
+collapses the entanglement and reduces the measured CHSH value.
+
+
+
+\subsection{Noise Model}
+\label{subsec:noise}
+Two noise regimes are considered. The first is a synthetic per qubit depolarizing
+channel of strength $p$, applied uniformly to every transmitted qubit so that the
+modeled disturbance does not depend on which gates a particular qubit happened to
+receive. This regime provides a clean, controllable axis along which to vary the
+channel quality. The second is a device noise model extracted from the
+\texttt{ibm\_marrakesh} backend. Unlike the uniform depolarizing channel, this
+model reproduces the heterogeneous error sources of real hardware, including per
+gate error rates, thermal relaxation characterized by the qubit $T_1$ and $T_2$
+times, and readout errors that vary from qubit to qubit. Testing against these
+physical realities matters because they do not behave as a single tunable
+parameter; instead they natively inflate the baseline QBER and degrade the
+baseline CHSH value $S$ even when no eavesdropper is present. Because honest
+sessions therefore begin closer to the abort condition, the device model
+inherently shrinks the stealth zone, the band of attack strengths an eavesdropper
+can occupy before the protocol is forced to abort, and so provides a stricter and
+more realistic test of detection than synthetic noise alone. The 2 regimes are
+treated as mutually exclusive, so that any reported error or detection statistic
+can be attributed to a single, clearly specified noise source.
+
+\subsection{Classical Post-Processing}
+For BB84 and the six state protocol, the sifted key is processed in 3 stages.
+Parameter estimation reveals a random subset of the sifted bits to measure the
+QBER, error reconciliation corrects the surviving mismatches using parity based
+block correction, and privacy amplification compresses the reconciled key to
+remove the information potentially leaked to Eve, with the compression length
+set from the binary entropy of the estimated QBER and the number of disclosed
+parity bits. For E91, the correlated matched basis outcomes furnish the key,
+which is then processed through the same reconciliation and privacy
+amplification stages, while the unmatched settings supply the CHSH estimate.
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.95\columnwidth]{Figures/fig_pipeline.pdf}
+\caption{End-to-end simulation pipeline. Each run proceeds from circuit construction, through one of the two mutually exclusive noise regimes (synthetic depolarizing or the \texttt{ibm\_marrakesh} device model), the partial intercept-and-resend eavesdropper acting on a fraction $f$ of the transmission, and the classical post-processing stages, to the final computation of the error indicators and detection statistics.}
+\label{fig:pipeline}
+\end{figure}
+\section{Performance Metrics}
+\label{sec:metrics}
+The end to end simulation pipeline is summarized in Fig.~\ref{fig:pipeline}. Each
+run begins with circuit construction for the chosen protocol, after which noise is
+injected from one of the two regimes of Section~\ref{subsec:noise}, either the
+synthetic depolarizing channel or the \texttt{ibm\_marrakesh} device model. The
+partial intercept and resend eavesdropper of Section~\ref{subsec:threat} then acts
+on a fraction $f$ of the transmission. The surviving signals pass through sifting,
+error reconciliation, and privacy amplification, and the run concludes by
+computing the error indicators and detection statistics, namely the QBER or CHSH
+value, the secure key rate, and the false positive and false negative rates.
+
+
+
+We evaluate the three protocols using 2 groups of metrics. The first group
+contains standard quantities that validate the implementation and place it
+alongside prior work. The second group contains the detection statistics that
+form the contribution of this study.
+
+\subsection{Basic Metrics}
+\textit{Quantum Bit Error Rate (QBER).} For BB84 and the six state protocol, the
+QBER is the fraction of positions in the sifted key where Alice's and Bob's bits
+disagree. It captures the combined effect of channel noise and eavesdropping and
+is the primary error indicator for prepare and measure protocols.
+
+\textit{CHSH parameter.} For E91, the CHSH value $S$ of \eqref{eq:chsh} plays the
+analogous role. A value above the classical bound of 2 certifies entanglement,
+and the amount by which $S$ exceeds 2 measures the quality of the correlations
+that secure the key.
+
+\textit{Secure key rate.} For all three protocols, the secure key rate is the
+number of secret key bits produced per transmitted qubit. Following the
+asymptotic Shor and Preskill expression, the secret fraction is taken as $r =
+\max(0,\, 1 - 2 H_2(Q))$, where $Q$ is the QBER and $H_2$ is the binary entropy
+function, and the secure key rate is the product of this fraction and the
+sifting ratio. The rate falls to 0 once the QBER reaches the threshold near
+11\%, beyond which no secret key can be distilled.
+
+\textit{Sifting efficiency.} The sifting ratio is the fraction of transmitted
+qubits retained after basis reconciliation. It is about 1/2 for BB84 and
+about 1/3 for the six state protocol, and it quantifies the key yield cost
+of adding a third basis.
+
+\subsection{Novel Metrics: Statistical Detection}
+\textit{False positive rate (FPR).} Eavesdropping is declared when the measured
+error indicator crosses a decision threshold, the QBER for BB84 and the six
+state protocol, and a corresponding threshold on $S$ for E91. The false positive
+rate is the probability that this test declares an eavesdropper when none is
+present and only channel noise is acting. A high FPR means a protocol aborts
+honest sessions unnecessarily.
+
+\textit{False negative rate (FNR).} The false negative rate is the probability
+that the test fails to declare an eavesdropper when one is in fact present. A
+high FNR means an attacker passes undetected. The FPR and FNR together
+characterize the reliability of eavesdropping detection, and we estimate both
+empirically from repeated simulation runs rather than from analytic bounds. Fig.~\ref{fig:detection} shows how both error rates arise from the overlap of the honest and eavesdropper distributions at the decision threshold. For BB84 and
+the six state protocol the statistical detection framework follows Lee et al.
+\cite{lee2022eavesdropping} and Fiorini et al. \cite{fiorini2025sixstate}; the
+contribution here is to report the same false positive and false negative rates
+for the entanglement based CHSH detection of E91, which has not previously been
+analyzed in these terms, and to compare all three on a common footing.
+
+\begin{figure*}[ht]
+\centering
+\includegraphics[width=\textwidth]{Figures/fig_detection_decision.pdf}
+\caption{Statistical definition of the detection errors. An alarm is declared when
+the error indicator crosses a fixed threshold. (a) For BB84 and the six-state
+protocol the alarm fires when the QBER reaches the threshold, so the false positive
+rate is the honest-channel mass above it and the false negative rate is the
+eavesdropper mass below it. (b) For E91 the alarm fires when the CHSH value $S$ falls
+below the classical bound $S=2$, mirroring the roles. Both rates are estimated
+empirically by Monte Carlo.}
+\label{fig:detection}
+\end{figure*}
+
+\textit{Decision thresholds.} Two different limits involve the QBER, and we keep
+them strictly separate. The first is the secure key rate limit near a QBER of
+11\%, the asymptotic Shor and Preskill bound beyond which the distilled
+secret fraction reaches 0 and no key can be safely produced. This limit only
+dictates whether a key can still be distilled; it does not raise an alarm. The
+second, used for detection, is the statistical threshold that actually triggers
+the eavesdropper alarm, and it is a separate quantity. We initially explored
+calibrating the detection thresholds dynamically from each channel's baseline
+honest noise profile, placing the alarm a fixed margin above the observed
+honest level in order to suppress false alarms on noisy channels. We ultimately
+discarded this adaptive scheme in favor of fixed, literature grounded limits, so
+that the reported error rates are measured against rigorous and standardized
+security bounds rather than boundaries fitted to our own data. For BB84 we adopt
+the optimal QBER threshold of Lee et al. \cite{lee2022eavesdropping}, who place
+the decision boundary that minimizes the combined Hoeffding bound on the 2 error
+rates at a QBER of $0.135$. For the six state protocol we adopt the Hoeffding
+balanced threshold derived by Fiorini et al. \cite{fiorini2025sixstate}. When the
+QBER is estimated from $n$ compared bits, Hoeffding's inequality bounds the two
+detection errors by
+\begin{equation}
+\mathrm{FPR} \le e^{-2n(\tau - q_0)^2}, \qquad
+\mathrm{FNR} \le e^{-2n(D - \tau)^2},
+\label{eq:hoeffding}
+\end{equation}
+where $\tau$ is the decision threshold, $q_0$ is the honest error rate, and $D$ is
+the expected disturbance under a full intercept and resend attack. Equalizing the
+two exponents places the threshold at the midpoint $\tau = (q_0 + D)/2$. For the
+six state protocol, with $D = 1/3$ and a noiseless reference $q_0 = 0$, this gives
+$\tau = 1/6 \approx 0.167$, consistent with Fiorini et al. For BB84, with $D = 1/4$
+and $q_0 = 0$, the midpoint is $\tau = 0.125$; we adopt the value $0.135$ that Lee
+et al.\ \cite{lee2022eavesdropping} report as optimal, whose threshold depends on
+the channel error and recovers $0.135$ for a small honest baseline of about $2\%$. We use these
+established thresholds for the prepare and measure protocols and contribute the
+corresponding analysis for the entanglement based detector of E91, for which no
+statistical detection threshold has previously been reported. For E91 the
+decision boundary is the CHSH classical bound of $2.0$, the value used to
+separate secure from compromised channels in prior entanglement based studies
+\cite{ekert1991quantum, dhakal2025performance, kadir2025e91}. A Bell violation is
+a necessary condition for distilling a secret key \cite{singh2021role}, so a
+measured $S$ that falls to 2 signals that the entanglement, and with it the
+security of the channel, can no longer be certified.
+
+\textit{Noise-calibrated CHSH threshold.} The existing implementation uses $S=2.0$, coinciding with the classical Bell bound, as the alarm threshold; no separate detection-optimized threshold for $S$ has previously been reported. We derive one using the same Hoeffding-balancing method used for the QBER thresholds above: writing $\hat S - S$ as a normalized sum of $4n$ independent $\pm1$-bounded terms (the four correlators of \eqref{eq:chsh}, with $n$ the count landing in each relevant basis combination), Hoeffding's inequality bounds $\mathrm{FPR}\le\exp(-n(S_H-S^*)^2/8)$ and $\mathrm{FNR}\le\exp(-n(S^*-S_f)^2/8)$, giving the balanced threshold $S^*=(S_H+S_f)/2$ -- structurally the same midpoint rule that produced the QBER thresholds above, applied to a four-correlator statistic instead of a single error rate, and precomputed from held-out calibration trials in the same way those thresholds were characterized once and then held fixed, not the live, per-session adaptive scheme considered and set aside earlier in this section. Unlike QBER, whose honest baseline is approximately noise-invariant across the regime tested here, honest $\langle S\rangle$ slides monotonically with depolarizing strength -- from $2.823$ in the noiseless case to $1.726$ at 11\% depolarizing noise, already below the classical bound on a fully honest channel -- so a single universal $S^*$ cannot serve every noise level: one calibrated at high noise misses a full-strength attacker at low noise, one calibrated at low noise false-alarms constantly at high noise. We therefore report $S^*$ per noise profile.
+
+We emphasise that $S^*$ and the classical bound $S=2$ answer two separate
+questions, and we keep them apart in the same way the QBER detection threshold is
+kept apart from the $11\%$ secure-key-rate limit. The bound $S=2$ is a
+security-certification boundary: below it no secret key can be distilled
+\cite{singh2021role}, whether or not an eavesdropper is present. The calibrated
+$S^*$ is an eavesdropper-detection boundary: it asks only whether the observed $S$
+has dropped below what the honest, calibrated channel produces. On a noisy channel
+these two boundaries separate, and for any depolarizing strength above about $2\%$
+the honest baseline already lies below $S=2$, so $S^*$ does too. A measured value
+in the band $S^*<S<2$ therefore means that no eavesdropper is flagged yet no key
+can be certified; the operator must continue to refuse key distillation whenever
+the honest baseline itself lies below $S=2$, and use $S^*$ only to decide whether
+the channel has deviated from that baseline. This is the entanglement-based
+analogue of the prepare-and-measure case, where the detection threshold ($0.135$
+or $0.167$) and the key-distillation limit ($\approx 11\%$) are distinct.
+
+\textit{Detection resource cost.} For a target FPR and FNR, we report the number
+of compared qubits, or entangled pairs, that each protocol requires to reach
+that target, which quantifies the quantum resources detection consumes.
+
+\textit{Detection versus key rate tradeoff.} Finally, by sweeping the
+interception fraction $f$ of Section~\ref{subsec:threat}, we report for each
+protocol the joint behaviour of detection performance and secure key rate, and
+we identify the attack strength at which detection becomes unreliable. This
+tradeoff is the central result the framework is designed to produce.
+
+\section{Results and Discussion}
+\label{sec:results}
+Unless otherwise stated, every synthetic data point is the mean over $50$
+independent Monte Carlo trials, using $1000$ transmitted qubits per trial for
+BB84 and the six state protocol and $8192$ entangled pairs per trial for E91; the
+device noise points use $30$ trials, with $200$ qubits or $1024$ pairs per trial.
+The interception fraction $f$ is swept from $0$ to $1$ in steps of $0.1$ for the
+synthetic channels and in steps of $0.25$ for the device model. We first validate
+the implementation against known analytic limits, then present the detection
+signal as a function of attack strength, the stealth window and the resulting
+tradeoff against secure key rate, the robustness of each detector to channel
+noise, the behaviour under real device noise, and finally the resource cost of
+detection.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{Figures/fig_metric_vs_f.pdf}
+\caption{Detection signal versus attack strength on an ideal channel. (a) The
+QBER of BB84 and the six-state protocol rises monotonically with the interception
+fraction $f$ and reaches the fixed detection thresholds ($0.135$ and $0.167$) only
+near $f = 0.5$. (b) The E91 CHSH value $S$ falls from the Tsirelson bound toward
+the classical bound $S = 2$, which it crosses near $f = 0.6$. Shaded bands show
+one standard deviation over the Monte Carlo trials.}
+\label{fig:metric_f}
+\end{figure*}
+
+\subsection{Implementation Validation}
+On an ideal channel with no eavesdropper, the 3 protocols reproduce their
+textbook limits, which confirms that the circuits and the post processing are
+correct. BB84 yields a QBER of $0.000$ and a secure key rate of $0.498$, matching
+the expected 1/2 sifting ratio, and the six state protocol yields a QBER of
+$0.000$ and a secure key rate of $0.333$, matching its 1/3 sifting ratio.
+For E91 the honest CHSH value is $S = 2.823$, within statistical error of the
+Tsirelson bound $2\sqrt{2} \approx 2.83$, and its secure key rate is $0.223$,
+consistent with the 2/9 setting combinations used for key generation.
+Under a full intercept and resend attack ($f = 1$) the disturbance signatures
+also match theory: the BB84 QBER rises to $0.253$ and the six state QBER to
+$0.338$, close to the predicted 25 and 33\%, while the
+E91 CHSH value falls to $S = 1.415 \approx \sqrt{2}$, well inside the classical
+region. In every case the secure key rate is 0 under the full attack. These
+anchor values appear as the endpoints of Fig.~\ref{fig:metric_f}.
+
+\subsection{Detection Signal Versus Attack Strength}
+Fig.~\ref{fig:metric_f} shows how each protocol's error indicator responds as the
+interception fraction grows on an otherwise ideal channel. The QBER of BB84 and
+the six state protocol rises monotonically with $f$, and the CHSH value of E91
+falls monotonically, so each indicator moves steadily from its honest value
+toward its full attack value. The rate of change differs across protocols. The
+six state QBER rises fastest, reaching its detection threshold of $0.167$ between
+$f = 0.4$ and $f = 0.5$, because its 3 basis measurement makes Eve guess
+wrong more often. The BB84 QBER reaches its lower threshold of $0.135$ between
+$f = 0.5$ and $f = 0.6$, and the E91 CHSH value crosses the classical bound
+$S = 2$ between $f = 0.5$ and $f = 0.6$. The important consequence is that for all
+3 protocols the indicator does not reach its decision boundary until roughly
+1/2 of the transmission is intercepted, which already suggests that a weaker
+attacker can remain below the alarm.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_tradeoff.pdf}
+\caption{The tradeoff between detection and key rate on an ideal channel. (a) The
+false negative rate stays at one through $f = 0.3$ (shaded stealth window) and
+then falls, earliest for the six-state protocol and latest for E91. (b) The secure
+key rate declines with $f$ and is already near zero by the attack strength at
+which each protocol's false negative rate first drops below one half.}
+\label{fig:tradeoff}
+\end{figure}
+
+\subsection{Stealth Window and Detection Versus Key Rate Tradeoff}
+Fig.~\ref{fig:tradeoff} makes this tension explicit by plotting, against the same
+attack fraction, the false negative rate of detection in the upper panel and the
+secure key rate in the lower panel. Three regimes are visible. For $f \le 0.3$,
+shaded in the figure, every protocol has a false negative rate of 1, meaning a
+single session never raises the alarm, yet the secure key rate is still clearly
+positive. At $f = 0.1$ the secure key rates are $0.322$, $0.191$, and $0.158$ for
+BB84, the six state protocol, and E91 respectively, and they remain positive
+through $f = 0.3$. This band is a genuine stealth window, in which the attacker
+harvests usable key while staying invisible to per session detection. As $f$
+increases further the false negative rate falls, but the order in which the
+protocols become detectable matters. The six state protocol is the first to
+respond, with its false negative rate dropping to $0.42$ at $f = 0.5$, followed by
+BB84, which falls to $0.20$ at $f = 0.6$, and finally E91, which is still at
+$0.54$ at $f = 0.6$ and only reaches 0 at $f = 0.7$. The six state protocol
+therefore closes the stealth window earliest and E91 sustains it longest, which
+makes the entanglement based detector the easiest for a partial attacker to
+evade. The lower panel adds the decisive point: by the time each protocol detects
+the attacker reliably, its secure key rate has already collapsed to near zero. The
+secure key rate is below $0.01$ for every protocol at the attack strength where
+its false negative rate first drops below 1/2. In other words, within a
+single session at these sample sizes, the fixed thresholds catch the attacker
+essentially only once the key is already destroyed, so detecting a stealthy low
+fraction attacker is not possible from one exchange and instead requires comparing
+many more signals, which we quantify in Section~\ref{subsec:resource}.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{Figures/fig_fpr_vs_noise.pdf}
+\caption{False positive rate on an honest channel as the synthetic noise level
+increases. BB84 and the six-state protocol remain near zero, whereas the E91 CHSH
+test raises a false alarm on most honest sessions once the channel error rate
+exceeds about 8\%.}
+\label{fig:fpr_noise}
+\end{figure}
+
+\subsection{Robustness to Channel Noise}
+A detector is only useful if it does not raise the alarm on an honest but noisy
+channel. Fig.~\ref{fig:fpr_noise} reports the false positive rate of each protocol
+as the synthetic channel noise increases with no eavesdropper present. BB84 and
+the six state protocol are robust: their false positive rate stays at 0 up to
+an honest error rate of 8\%, and only BB84 shows a small rate of $0.08$
+at the 11\% level, because its lower threshold of $0.135$ sits closer to
+the honest error rate than the six state threshold of $0.167$. E91 behaves very
+differently. Its honest CHSH value degrades steadily with noise, from $2.823$ at
+0 noise to $2.611$, $2.291$, $1.989$, and $1.726$ at the 2, 5, 8, and
+11\% levels, so it drops below the classical bound near the 8
+\% level. As a result the E91 false positive rate jumps to $0.60$ at 8
+\% and to $1.00$ at 11\%, meaning the CHSH test declares an
+eavesdropper on essentially every honest session once the channel is moderately
+noisy. This fragility is the principal weakness of entanglement based detection in
+this study, and it reflects the fact that the CHSH value is a more delicate quantity than the QBER.
+
+The noise-calibrated threshold introduced above resolves this failure. Table~\ref{tab:e91_calibrated} reports, for each noise profile, the calibrated threshold $S^*$ alongside the honest-channel FPR under the fixed $S=2.0$ rule and under $S^*$.
+
+\begin{table}[t]
+\centering
+\caption{Honest-channel false positive rate for E91 under the fixed classical-bound threshold ($S=2.0$) versus the noise-calibrated threshold $S^*$. $S^*$ restores FPR to zero at both noise levels where the fixed rule breaks down.}
+\label{tab:e91_calibrated}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Noise profile} & \textbf{$S^*$} & \textbf{FPR, fixed $S=2.0$} & \textbf{FPR, calibrated $S^*$} \\ \hline
+Ideal 0\% & 2.124 & 0.00 & 0.00 \\ \hline
+Noise 2\% & 1.945 & 0.00 & 0.00 \\ \hline
+Noise 5\% & 1.722 & 0.00 & 0.00 \\ \hline
+Noise 8\% & 1.499 & 0.60 & 0.00 \\ \hline
+Threshold 11\% & 1.293 & 1.00 & 0.00 \\ \hline
+IBM Marrakesh & 2.048 & 0.00 & 0.00 \\ \hline
+\end{tabular}
+\end{table}
+
+The calibrated threshold restores FPR to $0.00$ at both noise levels where the fixed rule broke down, with no cost at the lower-noise profiles, which were already at FPR $0.00$. Fig.~\ref{fig:e91_calibrated} shows the full attack-fraction sweep for both threshold schemes across all six noise conditions; the calibrated threshold trades a small loss of sensitivity at intermediate interception fractions on the noisiest profiles for the elimination of the honest-channel false alarms.
+
+Because $S^*$ is characterized once and held fixed rather than recomputed per session, its robustness to a channel drifting away from its calibration point matters in practice. Recalibrating at one noise step of drift, in either direction, leaves both FPR and FNR at $0.00$ across all eight one-step combinations tested. Two-step drift is more revealing: recalibrating at Noise 2\% but evaluating at Noise 8\% raises the honest-channel FPR to $0.24$, and recalibrating at Noise 5\% but evaluating at Threshold 11\% raises it to $0.58$, because $S^*$ ends up within, or below, one honest-channel standard deviation of the drifted-to profile's true honest $\langle S\rangle$. The safe direction, calibrating at higher noise and evaluating at lower noise, remains at FPR $0.00$ in both two-step cases tested, since $S^*$ then sits conservatively below the drifted-to honest baseline. This asymmetry, tolerant of the channel getting cleaner than assumed and intolerant of the channel getting noisier by more than about one calibration step, sets a practical bound on how infrequently the channel needs to be recharacterized.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{Figures/fig_e91_calibrated_threshold.pdf}
+\caption{E91 detection error across the full attack-fraction sweep $f\in[0,1]$, fixed threshold $S=2.0$ (red dashed) versus the noise-calibrated threshold $S^*$ (blue solid), one panel per noise profile. The plotted quantity is FPR at $f=0$ (star marker) and FNR at $f>0$.}
+\label{fig:e91_calibrated}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{Figures/fig_device.pdf}
+\caption{Behaviour under the \texttt{ibm\_marrakesh} device noise model. (a) The
+honest secure key rate falls only moderately relative to the ideal channel, and no
+protocol raises a false alarm. (b) The false negative rate versus interception
+fraction follows the same shape as on the ideal channel, so the stealth window
+persists on real hardware.}
+\label{fig:device}
+\end{figure*}
+
+\subsection{Behaviour Under Device Noise}
+The synthetic results above isolate a single noise strength, whereas a real device
+mixes many error sources. Fig.~\ref{fig:device} reports the 3 protocols under
+the noise model extracted from the \texttt{ibm\_marrakesh} backend. The honest
+results are reassuring. As the left panel shows, real device noise reduces the
+secure key rate only moderately, from $0.498$ to $0.414$ for BB84, from $0.333$ to
+$0.287$ for the six state protocol, and from $0.223$ to $0.166$ for E91, and the
+false positive rate is 0 for all 3. In particular the honest E91 CHSH value
+on the device is $S = 2.697$, comfortably above the classical bound, because the
+effective error rate of this backend is below the 8\% level at which the
+synthetic CHSH test broke down. This is an important qualification of the
+fragility result: E91 is fragile to large channel noise, but the measured device
+noise is mild enough that honest entanglement based operation remains viable. The
+right panel shows that detection on the device follows the same pattern as on the
+ideal channel, with the false negative rate staying near 1 for a 1/4
+interception and falling through 1/2 near $f = 0.5$ for all 3 protocols,
+so the stealth window persists on real hardware.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{Figures/fig_resource_cost.pdf}
+\caption{Detection resource cost. (a) False positive rate versus the number of
+compared signals $K$ on a worst-case honest noisy channel (11\% error
+for BB84 and the six-state protocol, 5\% for E91). (b) False negative
+rate versus $K$ against a full attacker on a clean channel. The six-state protocol
+suppresses false alarms with the fewest samples, and the false negative rate is
+easy to drive down for all three protocols.}
+\label{fig:resource}
+\end{figure*}
+
+\subsection{Detection Resource Cost}
+\label{subsec:resource}
+Because a single session cannot catch a stealthy attacker, the relevant question
+is how many compared signals are needed to make detection statistically reliable.
+Fig.~\ref{fig:resource} reports the false positive rate and the false negative
+rate as a function of the number of compared signals $K$, where the false positive
+rate is measured on a worst case honest noisy channel and the false negative rate
+on a fully intercepted clean channel. To keep each protocol near its own marginal
+honest regime, the honest channel used for the false positive measurement is held
+at an 11\% error rate for BB84 and the six state protocol and at a 5
+\% error rate for E91, since E91 at the 11\% level alarms on every
+honest run regardless of $K$. The false negative rate is easy to drive down for
+all 3 protocols, reaching 5\% or below within a few hundred compared
+signals. The binding constraint is the false positive rate. The six state protocol
+is the most sample efficient, falling below 5\% by about $K = 300$, BB84
+requires about $K = 1000$, and E91 lies in between, falling below 5\%
+between $K = 500$ and $K = 1000$. All 3 reach a negligible false positive rate
+within a few thousand signals. The ranking mirrors the threshold geometry: the six
+state threshold of $0.167$ leaves the widest margin above an 11\% honest
+channel, so it suppresses false alarms with the fewest samples, whereas the BB84
+threshold of $0.135$ leaves the least margin and is the most sample hungry.
+
+\subsection{Summary of Findings}
+
+\begin{table*}[t]
+\caption{Summary of the Comparative Detection Results Across the Three Protocols}
+\label{tab:summary}
+\begin{center}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.3}
+\footnotesize
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Protocol} & \textbf{Detection} & \textbf{Stealth-window} & \textbf{Detection onset} & \textbf{FPR at} & \textbf{$K$ for} & \textbf{Device honest} \\
+ & \textbf{threshold} & \textbf{edge ($f$)} & \textbf{($f$, FNR $\le 0.5$)} & \textbf{$11\%$ noise} & \textbf{FPR $\le 5\%$} & \textbf{SKR} \\ \hline
+BB84      & QBER $0.135$ & $0.3$ & $0.6$ & $0.08$ & $\approx 1000$ & $0.414$ \\ \hline
+Six-State & QBER $0.167$ & $0.3$ & $0.5$ & $0.00$ & $\approx 300$  & $0.287$ \\ \hline
+E91 & $S^{*}$ & $0.5$ & $0.7$ & $0.00$ & $\approx 700$ & $0.166$ \\ \hline
+\end{tabular}
+\end{center}
+\end{table*}
+
+Table~\ref{tab:summary} consolidates the comparison across the three protocols.
+Taken together, the results identify the six state protocol as offering the most
+favourable detection profile among the 3. It produces the strongest
+disturbance signal per intercepted qubit, closes the stealth window at the lowest
+attack fraction, never raises a false alarm across the synthetic noise range
+studied, and needs the fewest compared signals to make detection reliable, at the
+cost of the lowest sifted key yield. BB84 is intermediate on every axis. E91
+directly certifies the entangled resource that secures its key, but it is the most
+evadable by a partial attacker and by far the most fragile to channel noise,
+although real device noise is mild enough that honest operation is preserved. The detection threshold and 11\% noise FPR entries reported here for E91 reflect the noise-calibrated $S^{*}$ scheme introduced earlier in this section; the compared-signal count $K$ and secure key rate entries have not been rederived under calibration and still correspond to the original fixed $S=2.0$ rule.
+Across all 3 protocols the central finding is the same: a partial intercept
+and resend attacker has a stealth window at low interception fractions in which
+key still flows and per session detection fails, and reliable detection of such an
+attacker is a question of accumulated statistics rather than of any single
+exchange.
+
+\section{Conclusion}
+We presented a unified, noise aware Qiskit study of the BB84, six state, and E91
+protocols that evaluates eavesdropping detection statistically, through the false
+positive and false negative rates, and extends this analysis from full
+interception to a partial intercept and resend attacker that targets a tunable
+fraction of the transmission. Statistical detection of this kind was established
+for BB84 by Lee et al. \cite{lee2022eavesdropping} and recently extended to the
+six state protocol by Fiorini et al. \cite{fiorini2025sixstate}; building on those
+thresholds, we provide the first false positive and false negative analysis of
+the entanglement based CHSH detector and the first comparison of statistical
+detection across prepare and measure and entanglement based protocols within one
+framework. Across matched ideal, synthetic noise, and real device conditions, the
+study produces for each protocol a tradeoff between detection performance and
+secure key rate as a function of attack strength. The main findings are that a
+partial attacker has a stealth window at low interception fractions in which a
+usable key is still produced while a single session never raises the alarm, that
+reliable per session detection appears only once the attack is strong enough to
+have already destroyed the key, and that detecting a stealthy attacker is
+therefore a matter of accumulated statistics. Among the 3 protocols the six state
+protocol offers the most favourable detection profile, closing the stealth window
+earliest, never raising a false alarm across the noise range studied, and
+requiring the fewest compared signals, at the cost of the lowest key yield; BB84
+is intermediate; and E91 directly certifies entanglement but is the most evadable
+and the most fragile to channel noise, although honest operation is preserved
+under the measured device noise.
+
+Several directions remain open. The E91 detection boundary used here is the fixed
+CHSH classical bound $S = 2$, a security limit rather than a statistically
+optimized threshold; deriving the threshold on $S$ that balances the false
+positive and false negative rates from the variance of the CHSH estimator, in the
+way Lee et al. \cite{lee2022eavesdropping} and Fiorini et al.
+\cite{fiorini2025sixstate} do for the QBER, would give the entanglement based
+detector the same statistical footing as the prepare and measure detectors. The
+six state detection threshold was placed by balancing the Hoeffding bounds on the
+two detection errors; a tighter construction that instead minimizes their weighted
+sum, together with distribution aware rather than worst case bounds, would refine
+it further. The secure key rate used the asymptotic Shor and Preskill expression,
+and a finite key treatment would tighten the resource cost results. Because the
+central finding is that detection is a matter of accumulated statistics, a
+sequential detector that aggregates evidence across sessions is a natural way to
+catch a low fraction attacker that no single session catches. Finally, executing
+the protocols on real quantum hardware rather than a device noise model, and
+extending the adversary beyond intercept and resend to collective and coherent
+attacks, would test whether the stealth window and the protocol ordering observed
+here persist under stronger conditions.
+
+\section*{Acknowledgment}
+The authors thank Mitacs for the Globalink Research Award, which provided the
+opportunity to carry out this research, and the University of Aberdeen for
+hosting the research visit during which this work was conducted.
+
+\bibliographystyle{ieeetr}
+\bibliography{references}
+
+\end{document}

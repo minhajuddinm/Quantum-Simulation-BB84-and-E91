@@ -26,6 +26,17 @@ ve = pd.read_csv(os.path.join(CSV_DIR, "qkd_varying_eve.csv"))
 rc = pd.read_csv(os.path.join(CSV_DIR, "qkd_resource_cost.csv"))
 PROT = ["BB84", "Six-State", "E91"]
 
+# --- E91 threshold-dependent outputs under the noise-calibrated S* -----------
+# BB84 and six-state curves still come from ve / rc above (untouched, fixed-QBER
+# thresholds). Only the E91 DETECTION curves (FNR-vs-f, and FPR/FNR-vs-K) are
+# re-read from the calibrated-S* sweeps. E91 SKR and CHSH signal stay in ve.
+e91_cal = pd.read_csv(os.path.join(CSV_DIR, "qkd_e91_calibrated.csv"))          # FNR-vs-f under S*
+e91_rc = pd.read_csv(os.path.join(CSV_DIR, "qkd_e91_resource_cost_calibrated.csv"))  # FPR/FNR-vs-K under S*
+
+def e91_fnr_vs_f(profile):
+    d = e91_cal[e91_cal.Noise_Profile == profile].sort_values("F_Eve")
+    return d.F_Eve.values, d.FNR.values
+
 def series(proto, profile="Ideal_0%"):
     return ve[(ve.Protocol == proto) & (ve.Noise_Profile == profile)].sort_values("F_Eve")
 
@@ -69,7 +80,11 @@ def tradeoff():
     fig, ax = plt.subplots(2, 1, figsize=(5.2, 4.4), sharex=True)
     for p in PROT:
         d = series(p)
-        ax[0].plot(d.F_Eve, d.FNR, color=C[p], marker=M[p], ms=3.5, lw=1.4, label=p)
+        if p == "E91":
+            xf, yfnr = e91_fnr_vs_f("Ideal_0%")   # FNR under calibrated S*_ideal = 2.124
+            ax[0].plot(xf, yfnr, color=C[p], marker=M[p], ms=3.5, lw=1.4, label=p)
+        else:
+            ax[0].plot(d.F_Eve, d.FNR, color=C[p], marker=M[p], ms=3.5, lw=1.4, label=p)
         ax[1].plot(d.F_Eve, d.Mean_SKR, color=C[p], marker=M[p], ms=3.5, lw=1.4, label=p)
     for a in ax:
         a.axvspan(0.0, 0.3, color=GREY, alpha=0.10, lw=0)
@@ -103,7 +118,10 @@ def fpr_vs_noise():
 def resource_cost():
     fig, ax = plt.subplots(1, 2, figsize=(7.0, 2.9))
     for p in PROT:
-        d = rc[rc.Protocol == p].sort_values("K")
+        # E91 K-sweep re-read under calibrated S* (FPR@S*_5%, FNR@S*_ideal);
+        # BB84/six-state stay on their published fixed-QBER-threshold rows.
+        d = e91_rc[e91_rc.Protocol == "E91"].sort_values("K") if p == "E91" \
+            else rc[rc.Protocol == p].sort_values("K")
         ax[0].plot(d.K, d.FPR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
         ax[1].plot(d.K, d.FNR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
     for a in ax:
@@ -128,8 +146,12 @@ def device_noise():
     ax[0].set_title("(a) honest key rate: ideal vs device", fontsize=8)
     ax[0].legend(fontsize=7, frameon=False); ax[0].tick_params(labelsize=7.5)
     for p in PROT:
-        d = series(p, "IBM_Marrakesh")
-        ax[1].plot(d.F_Eve, d.FNR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
+        if p == "E91":
+            xf, yfnr = e91_fnr_vs_f("IBM_Marrakesh")   # FNR under calibrated S*_marrakesh = 2.048
+            ax[1].plot(xf, yfnr, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
+        else:
+            d = series(p, "IBM_Marrakesh")
+            ax[1].plot(d.F_Eve, d.FNR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
     ax[1].axhline(0.5, color=GREY, ls=":", lw=0.8)
     ax[1].set_xlabel("interception fraction $f$"); ax[1].set_ylabel("FNR")
     ax[1].set_title("(b) detection on ibm_marrakesh", fontsize=8)

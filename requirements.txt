@@ -1,0 +1,15 @@
+# Pinned to the versions this study was developed and verified against
+# (Python 3.14.0). Install with:  pip install -r requirements.txt
+
+# --- simulation core (Tasks 1-2) ---
+qiskit==2.4.1
+qiskit-aer==0.17.2
+qiskit-ibm-runtime==0.47.0        # only needed for the IBM_Marrakesh device profile
+numpy==2.4.6
+
+# --- statistics: exact t-distribution CIs + Welch test (Tasks 2, 4) ---
+scipy==1.17.1
+
+# --- figures only (figures/*.py) ---
+matplotlib==3.10.9
+pandas>=2.2                        # not pinned: install any recent 2.x for the figure scripts

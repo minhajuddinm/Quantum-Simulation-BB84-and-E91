@@ -1,0 +1,9 @@
+Calibrated_At,S_star,Evaluated_At,Drift,FPR_honest,FNR_full_attack
+Ideal_0%,2.1244856095402556,Noise_2%,1,0.0,0.0
+Noise_2%,1.9446561538027187,Ideal_0%,-1,0.0,0.0
+Noise_2%,1.9446561538027187,Noise_5%,1,0.0,0.0
+Noise_5%,1.721753964156116,Noise_2%,-1,0.0,0.0
+Noise_5%,1.721753964156116,Noise_8%,1,0.0,0.0
+Noise_8%,1.4992996236195126,Noise_5%,-1,0.0,0.0
+Noise_8%,1.4992996236195126,Threshold_11%,1,0.0,0.0
+Threshold_11%,1.293404313095305,Noise_8%,-1,0.0,0.0

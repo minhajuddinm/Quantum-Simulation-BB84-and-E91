@@ -465,9 +465,9 @@ if __name__ == "__main__":
     real_noise_model = NoiseModel.from_backend(backend)
     print("Noise model loaded successfully!\n")
 
-    TRIALS = 50           
-    STD_QUBITS = 1000     
-    E91_PAIRS = 8192      
+    TRIALS = 200          # raised from 50 for tighter CIs (Task 2 / manuscript revision)
+    STD_QUBITS = 1000
+    E91_PAIRS = 8192
 
     protocols = ["BB84", "Six-State", "E91"]
     

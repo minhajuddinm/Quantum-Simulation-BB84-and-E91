@@ -1,0 +1,7 @@
+Calibrated_At,S_star,Evaluated_At,Drift,FPR_honest,FNR_full_attack
+Ideal_0%,2.1245,Noise_5%,2,0.000,0.000
+Noise_5%,1.7218,Ideal_0%,-2,0.000,0.000
+Noise_2%,1.9447,Noise_8%,2,0.240,0.000
+Noise_8%,1.4993,Noise_2%,-2,0.000,0.000
+Noise_5%,1.7218,Threshold_11%,2,0.580,0.000
+Threshold_11%,1.2934,Noise_5%,-2,0.000,0.000

@@ -1,0 +1,72 @@
+# From Conference Paper to Journal: Next Steps
+
+QKD detection paper (BB84, six-state, E91). Plan for the journal extension after the conference version.
+
+## Where the paper stands
+
+The conference version, after the eight edits, is sound and submittable. Its real contributions are the first FPR/FNR analysis of the entanglement based CHSH detector, the first side by side comparison of prepare and measure and entanglement based statistical detection under a matched partial attacker, and the stealth window versus secure key rate result across all three protocols.
+
+The prepare and measure half (BB84 and six-state detection) is reproduction of the Fiorini group and now cites them. It cannot carry novelty past the conference. Everything that lifts this to a journal has to come from the entanglement side and from new methods.
+
+Do not put the new methods below into the conference paper. Keep the conference version on the comparison and the stealth window, and hold the new work for the journal. This guarantees the journal has substantial new content over the conference paper, which reviewers require, and it means the conference paper does not leave you with nothing to extend.
+
+## Priority 1: Optimized CHSH detection threshold for E91
+
+This is the load bearing addition. Right now E91 uses the fixed classical bound S = 2, which is a security limit, not a detection optimal threshold. So E91 does not even get the treatment BB84 and six-state get. Nobody has derived the balanced threshold for the Bell parameter S.
+
+Task: derive the threshold on S that balances FPR and FNR given the variance of the CHSH estimator, instead of defaulting to S = 2. The QBER version balances two Hoeffding exponents at the midpoint; do the analogous derivation for S, accounting for the fact that S is a sum of four correlation estimates rather than a single error fraction.
+
+Why it matters: it is genuinely new, it is the natural journal core, and it closes the asymmetry where E91 is the only protocol without an optimized threshold. Expect this to become its own results subsection plus a derivation in the methods.
+
+## Priority 2: Sequential / time based detector
+
+Your own central finding is that catching a stealthy attacker is a matter of accumulated statistics, not a single session. Turn that into an actual detector.
+
+Task: implement a sequential test (CUSUM or sequential probability ratio test) that accumulates evidence across sessions, for the QBER stream and for the CHSH stream. Report how many sessions it needs to catch a low fraction attacker (f = 0.1, 0.2, 0.3) that no single session catches, and the false alarm rate over time on an honest channel.
+
+Why it matters: this is the "time based threshold" idea, it is directly motivated by the stealth window result, and it is a real methodological contribution. Priority 1 and Priority 2 together are what make this a journal paper rather than a longer conference paper.
+
+## Priority 3: Finite key secure key rate
+
+Task: replace the asymptotic Shor and Preskill expression with a finite key treatment. Use confidence interval methods (Wald, Wilson, Clopper-Pearson, Hoeffding) on the QBER and on S to get finite sample bounds, and recompute the resource cost results with them.
+
+Why it matters: it tightens the resource cost numbers and answers a standard reviewer objection that the key rate is asymptotic. Lower effort than Priorities 1 and 2 since the framework already exists in the literature.
+
+## Priority 4: Real hardware execution
+
+Task: run the detection framework on a real IBM backend, not just the extracted noise model. Measure FPR, FNR, and the stealth window on actual hardware for all three protocols.
+
+Why it matters: running QKD on a device is common and adds little, but measuring the detection statistics and the stealth window on real hardware has not been reported for these protocols. This is the version of the hardware contribution that is new. Frame it as detection statistics on real hardware, never as "we ran QKD on a device."
+
+Note: hardware access, queue times, and shot budgets will constrain key length and trial count. Plan smaller runs than the simulator and report the sample sizes honestly.
+
+## Priority 5: Stronger adversary
+
+Task: add an adaptive attacker as a comparison point, for example one that bursts interception at the end of a session, and test whether the stealth window and the protocol ordering survive.
+
+Why it matters: fixed rate intercept and resend is increasingly seen as too weak. An adaptive baseline stress tests the central claim. Lower priority than 1 through 4; include if time allows.
+
+## The journal story
+
+Statistical eavesdropping detection across the QKD design space, from per session thresholds to sequential detection, for prepare and measure and entanglement based protocols, validated on real hardware. The optimized CHSH threshold (Priority 1) and the sequential detector (Priority 2) are the two pillars that distinguish the journal paper from the conference paper.
+
+## Venue targets
+
+- IEEE Transactions on Network and Service Management. Strongest fit. Lee et al., the anchor reference, published there.
+- IEEE Transactions on Quantum Engineering. Good fit for the quantum methods angle.
+- EPJ Quantum Technology. Reasonable, quantum focused.
+- Future Internet (MDPI) or Computer Networks (Elsevier). The Fiorini group's homes. Realistic but below what the deepened version can reach. Treat as fallback.
+
+## Rough sequence
+
+1. Conference paper: submit the revised version as is.
+2. Derive and implement the optimized CHSH threshold (Priority 1).
+3. Build the sequential detector and run it (Priority 2).
+4. Add the finite key analysis (Priority 3).
+5. Secure hardware access and run the detection framework on a real backend (Priority 4).
+6. Optional adaptive adversary (Priority 5).
+7. Assemble the journal manuscript around the journal story above, with Priorities 1 and 2 as the headline.
+
+## Citations to verify before any submission
+
+Three Fiorini works are now cited. The Computer Networks one is verified. Verify the two MDPI DOIs on the publisher site before submission.
