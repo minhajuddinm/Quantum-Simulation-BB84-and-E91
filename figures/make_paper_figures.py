@@ -35,9 +35,10 @@
 =============================================================================
 """
 import argparse
+import csv
 import os
+from collections import defaultdict
 import numpy as np
-import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -112,20 +113,22 @@ def wilson(k, n, z=1.96):
     return max(0.0, c - half), min(1.0, c + half)
 
 
-def curve(df, proto, value_col, metric_name=None, fmin=None):
+def curve(rows, proto, value_col, metric_name=None, fmin=None):
     """Per-f mean + 95% CI of `value_col`, optionally filtered to a Metric_Name
     and to F_Eve > fmin. Returns arrays f, mean, lo, hi (sorted by f)."""
-    d = df[df.Protocol == proto]
+    sel = [r for r in rows if r["Protocol"] == proto]
     if metric_name is not None:
-        d = d[d.Metric_Name == metric_name]
+        sel = [r for r in sel if r["Metric_Name"] == metric_name]
     if fmin is not None:
-        d = d[d.F_Eve > fmin]
-    rows = []
-    for f, g in d.groupby("F_Eve"):
-        m, lo, hi = mean_ci(g[value_col].values)
-        rows.append((float(f), m, lo, hi))
-    rows.sort()
-    a = np.array(rows).T
+        sel = [r for r in sel if float(r["F_Eve"]) > fmin]
+    groups = defaultdict(list)
+    for r in sel:
+        groups[float(r["F_Eve"])].append(float(r[value_col]))
+    out = []
+    for f in sorted(groups):
+        m, lo, hi = mean_ci(groups[f])
+        out.append((f, m, lo, hi))
+    a = np.array(out).T
     return a[0], a[1], a[2], a[3]
 
 
@@ -156,9 +159,32 @@ def save(fig, name):
 # ---------------------------------------------------------------------------
 _cache = {}
 def load(path):
+    """Read a CSV into a list of dict rows (values kept as strings)."""
     if path not in _cache:
-        _cache[path] = pd.read_csv(path)
+        with open(path, newline="") as f:
+            _cache[path] = list(csv.DictReader(f))
     return _cache[path]
+
+
+def where(rows, **eq):
+    """Rows whose columns equal the given values (string or numeric compare)."""
+    out = []
+    for r in rows:
+        ok = True
+        for k, v in eq.items():
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                if float(r[k]) != float(v):
+                    ok = False; break
+            elif r[k] != v:
+                ok = False; break
+        if ok:
+            out.append(r)
+    return out
+
+
+def fcol(rows, name):
+    """Extract a column as a float numpy array."""
+    return np.array([float(r[name]) for r in rows])
 
 
 # ===========================================================================
@@ -254,9 +280,9 @@ def fig3():
     for p in ["BB84", "Six-State"]:
         xs, ys, los, his = [], [], [], []
         for prof, lvl in NOISE:
-            g = pt[(pt.Protocol == p) & (pt.Noise_Profile == prof)]
-            if len(g):
-                m, lo, hi = mean_ci(g["Alarm_FP"].values)
+            g = where(pt, Protocol=p, Noise_Profile=prof)
+            if g:
+                m, lo, hi = mean_ci(fcol(g, "Alarm_FP"))
                 xs.append(lvl); ys.append(m); los.append(max(0, lo)); his.append(hi)
         ax.plot(xs, ys, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
         ax.fill_between(xs, los, his, color=C[p], alpha=0.15, lw=0)
@@ -264,12 +290,10 @@ def fig3():
     # E91 FIXED rule S < 2.0 (derived from per-trial S) -- the failure mode
     xs, ys, los, his = [], [], [], []
     for prof, lvl in NOISE:
-        g = pt[(pt.Protocol == "E91") & (pt.Noise_Profile == prof)]
-        s = g["Metric"].values
+        s = fcol(where(pt, Protocol="E91", Noise_Profile=prof), "Metric")
         k = int((s < 2.0).sum()); n = s.size
-        p_hat = k / n
         lo, hi = wilson(k, n)
-        xs.append(lvl); ys.append(p_hat); los.append(lo); his.append(hi)
+        xs.append(lvl); ys.append(k / n); los.append(lo); his.append(hi)
     ax.plot(xs, ys, color=C["E91"], marker=M["E91"], ms=4, lw=1.4,
             ls="--", label="E91 (fixed $S=2.0$)")
     ax.fill_between(xs, los, his, color=C["E91"], alpha=0.12, lw=0)
@@ -277,8 +301,8 @@ def fig3():
     # E91 CALIBRATED S* (honest alarm indicator already uses per-profile S*)
     xs, ys = [], []
     for prof, lvl in NOISE:
-        g = pt[(pt.Protocol == "E91") & (pt.Noise_Profile == prof)]
-        xs.append(lvl); ys.append(float(g["Alarm_FP"].values.mean()))
+        g = where(pt, Protocol="E91", Noise_Profile=prof)
+        xs.append(lvl); ys.append(float(fcol(g, "Alarm_FP").mean()))
     ax.plot(xs, ys, color=C["E91"], marker="D", ms=3.5, lw=1.4,
             ls="-", label="E91 (calibrated $S^*$)")
 
@@ -295,28 +319,34 @@ def fig3():
 # ===========================================================================
 # FIGURE 4 -- fig_resource_cost.pdf   (two panels, full text width)
 # ===========================================================================
+def _rc(rc, proto, col):
+    d = sorted(where(rc, Protocol=proto), key=lambda r: float(r["K"]))
+    return fcol(d, "K"), fcol(d, col)
+
+
 def _ss(ss, curve_name, channel):
-    d = ss[(ss.Threshold_Mode == "Sstar") & (ss.Curve == curve_name) &
-           (ss.Channel.str.startswith(channel))].sort_values("K")
-    return d.K.values, d.Rate.values
+    d = [r for r in ss if r["Threshold_Mode"] == "Sstar" and r["Curve"] == curve_name
+         and r["Channel"].startswith(channel)]
+    d.sort(key=lambda r: float(r["K"]))
+    return fcol(d, "K"), fcol(d, "Rate")
 
 
 def fig4():
-    rc = load("qkd_resource_cost.csv")
+    rc = load("data/qkd_resource_cost.csv")
     ss = load("results/qkd_e91_resource_cost_sstar.csv")
     fig, ax = plt.subplots(1, 2, figsize=(7.0, 2.9))
 
     # (a) FPR vs K on the worst-case honest 11% channel
     for p in ["BB84", "Six-State"]:
-        d = rc[rc.Protocol == p].sort_values("K")
-        ax[0].plot(d.K, d.FPR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
+        k, y = _rc(rc, p, "FPR")
+        ax[0].plot(k, y, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
     k, r = _ss(ss, "FPR", "Threshold_11%")
     ax[0].plot(k, r, color=C["E91"], marker=M["E91"], ms=4, lw=1.4,
                label="E91 ($S^*$)")
     # (b) FNR vs K against a full attacker on a clean channel
     for p in ["BB84", "Six-State"]:
-        d = rc[rc.Protocol == p].sort_values("K")
-        ax[1].plot(d.K, d.FNR, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
+        k, y = _rc(rc, p, "FNR")
+        ax[1].plot(k, y, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
     k, r = _ss(ss, "FNR", "Ideal_0%")
     ax[1].plot(k, r, color=C["E91"], marker=M["E91"], ms=4, lw=1.4,
                label="E91 ($S^*$)")
@@ -399,23 +429,23 @@ def fig5():
 # FIGURE 6 -- fig_device.pdf   (two panels, full text width)  [device data only]
 # ===========================================================================
 def fig6():
-    ve = load("qkd_varying_eve.csv")
-    if not (ve.Noise_Profile == "IBM_Marrakesh").any():
+    ve = load("data/qkd_varying_eve.csv")
+    if not where(ve, Noise_Profile="IBM_Marrakesh"):
         return None                                 # no device data -> SKIP
-    e91c = load("qkd_e91_calibrated.csv")
+    e91c = load("data/qkd_e91_calibrated.csv")
     fig, ax = plt.subplots(1, 2, figsize=(7.0, 2.9))
 
     # (a) honest secure key rate: ideal vs device, with 95% t-CI error bars
-    def honest(df, proto, profile):
-        r = df[(df.Protocol == proto) & (df.Noise_Profile == profile) & (df.F_Eve == 0.0)]
-        return float(r.Mean_SKR.values[0]), float(r.Std_SKR.values[0])
+    def honest(proto, profile):
+        r = where(ve, Protocol=proto, Noise_Profile=profile, F_Eve=0.0)[0]
+        return float(r["Mean_SKR"]), float(r["Std_SKR"])
     x = np.arange(3); w = 0.36
     for off, prof, n, lbl, col in [(-w / 2, "Ideal_0%", 200, "ideal", "#c9c9c9"),
-                                   (w / 2, "IBM_Marrakesh", 30, "ibm\\_marrakesh", "#6a9fd0")]:
+                                   (w / 2, "IBM_Marrakesh", 30, "ibm_marrakesh", "#6a9fd0")]:
         means, errs = [], []
         for p in PROT:
-            m, sd = honest(ve, p, prof)
-            lo, hi = mean_ci_ms(m, sd, n)
+            m, sd = honest(p, prof)
+            lo, _ = mean_ci_ms(m, sd, n)
             means.append(m); errs.append(m - lo)
         ax[0].bar(x + off, means, w, yerr=errs, capsize=2.5, label=lbl,
                   color=col, edgecolor="k", lw=0.6,
@@ -428,12 +458,11 @@ def fig6():
 
     # (b) FNR vs f on the device (BB84/six-state from ve, E91 from calibrated S*)
     for p in PROT:
-        if p == "E91":
-            d = e91c[e91c.Noise_Profile == "IBM_Marrakesh"].sort_values("F_Eve")
-            xf, yf = d.F_Eve.values, d.FNR.values
-        else:
-            d = ve[(ve.Protocol == p) & (ve.Noise_Profile == "IBM_Marrakesh")].sort_values("F_Eve")
-            xf, yf = d.F_Eve.values, d.FNR.values
+        src = e91c if p == "E91" else ve
+        d = where(src, Noise_Profile="IBM_Marrakesh") if p == "E91" \
+            else where(ve, Protocol=p, Noise_Profile="IBM_Marrakesh")
+        d = sorted(d, key=lambda r: float(r["F_Eve"]))
+        xf, yf = fcol(d, "F_Eve"), fcol(d, "FNR")
         ax[1].plot(xf, yf, color=C[p], marker=M[p], ms=4, lw=1.4, label=p)
         los = [wilson(int(round(v * 30)), 30)[0] for v in yf]
         his = [wilson(int(round(v * 30)), 30)[1] for v in yf]

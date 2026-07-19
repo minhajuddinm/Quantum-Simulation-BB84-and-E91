@@ -282,15 +282,15 @@ if __name__ == "__main__":
 
     calibration = run_calibrated_sweep(
         all_profiles, TRIALS, E91_PAIRS, F_FRACTIONS, CALIB_TRIALS,
-        out_csv="qkd_e91_calibrated.csv")
+        out_csv="data/qkd_e91_calibrated.csv")
 
-    if all_profiles_complete(all_profiles, F_FRACTIONS, "qkd_e91_calibrated.csv"):
+    if all_profiles_complete(all_profiles, F_FRACTIONS, "data/qkd_e91_calibrated.csv"):
         # Mis-calibration drift check only makes sense across the synthetic
         # noise ladder -- see module docstring for why IBM_Marrakesh is excluded.
         synthetic_calibration = {k: v for k, v in calibration.items() if k in synthetic_profiles}
         run_miscalibration_check(
             synthetic_profiles, synthetic_calibration, trials=TRIALS, num_pairs=E91_PAIRS,
-            out_csv="qkd_e91_miscalibration.csv")
+            out_csv="data/qkd_e91_miscalibration.csv")
     else:
         print(f"\nMain sweep not yet complete -- skipping mis-calibration check this run. "
               f"Re-run the script to continue.")

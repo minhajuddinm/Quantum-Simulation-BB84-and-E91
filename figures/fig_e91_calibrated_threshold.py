@@ -32,11 +32,11 @@ plt.rcParams.update({
     "font.family": "serif", "font.size": 9, "mathtext.fontset": "cm",
     "axes.linewidth": 0.8, "savefig.bbox": "tight", "savefig.pad_inches": 0.03,
 })
-OUT = "."
+OUT = "figures"
 os.makedirs(OUT, exist_ok=True)
 
-ve = pd.read_csv("../qkd_varying_eve.csv")
-cal = pd.read_csv("../qkd_e91_calibrated.csv")
+ve = pd.read_csv("data/qkd_varying_eve.csv")
+cal = pd.read_csv("data/qkd_e91_calibrated.csv")
 
 PROFILES = ["Ideal_0%", "Noise_2%", "Noise_5%", "Noise_8%", "Threshold_11%", "IBM_Marrakesh"]
 TITLES = ["Ideal 0%", "Noise 2%", "Noise 5%", "Noise 8%", "Threshold 11%", "IBM Marrakesh"]

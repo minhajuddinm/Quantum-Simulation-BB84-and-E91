@@ -581,7 +581,7 @@ if __name__ == "__main__":
         "IBM_Marrakesh": {"p_noise": 0.0, "model": real_noise_model}
     }
 
-    csv_filename = "qkd_results.csv"
+    csv_filename = "data/qkd_results.csv"
     with open(csv_filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Protocol", "Noise_Profile", "F_Eve", "QBER_Threshold", "CHSH_Threshold", "Mean_Metric", "Std_Metric", "Mean_SKR", "Std_SKR", "FPR", "FNR"])

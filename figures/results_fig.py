@@ -18,7 +18,7 @@ plt.rcParams.update({
 C = {"BB84": "#2c6fbb", "Six-State": "#3a8a5f", "E91": "#9a6db0"}
 M = {"BB84": "o", "Six-State": "s", "E91": "^"}
 GREY = "#777777"
-CSV_DIR = "."
+CSV_DIR = "data"
 OUT = "figures"
 os.makedirs(OUT, exist_ok=True)
 

@@ -25,8 +25,8 @@ import csv
 import os
 import numpy as np
 
-CAL = "qkd_e91_calibrated.csv"
-RC = "qkd_e91_resource_cost_calibrated.csv"
+CAL = "data/qkd_e91_calibrated.csv"
+RC = "data/qkd_e91_resource_cost_calibrated.csv"
 
 
 def _read(path):

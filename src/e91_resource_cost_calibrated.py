@@ -68,7 +68,7 @@ EXPECTED_S_STAR_IDEAL = 2.124
 EXPECTED_S_STAR_5PCT = 1.722
 SANITY_TOL = 0.05
 
-OUT_CSV = "qkd_e91_resource_cost_calibrated.csv"
+OUT_CSV = "data/qkd_e91_resource_cost_calibrated.csv"
 
 
 # ===========================================================================

@@ -440,7 +440,7 @@ if __name__ == "__main__":
     TRIALS = 200
     protocols = ["BB84", "Six-State", "E91"]
 
-    csv_filename = "qkd_resource_cost.csv"
+    csv_filename = "data/qkd_resource_cost.csv"
     with open(csv_filename, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(["Protocol", "K", "Trials", "FPR", "FNR"])
