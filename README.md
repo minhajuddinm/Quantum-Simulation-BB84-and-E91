@@ -16,9 +16,9 @@ This repo tracks a **journal revision** of an accepted conference paper. The cen
 
 ## 📁 Repository Structure
 
-All simulation and analysis code lives in **`src/`**. The scripts are flat sibling modules that `import` each other by name (e.g. `import detection_aware_qkd_varying_eve as base`), so they must stay together in one folder — they are **not** sorted into sub-packages.
+All simulation and analysis code lives in **`src/`**. The scripts are flat sibling modules that `import` each other by name (e.g. `import detection_aware_qkd_varying_eve as base`), so they must stay together in one folder — they are **not** sorted into sub-packages. All input/output data lives in two folders: the published-figure CSVs in **`data/`** and the manuscript-revision outputs in **`results/`**.
 
-> **Always run scripts from the project root**, e.g. `python src/ci_reruns.py` — never `cd src` first. Every script resolves data paths relative to the working directory (`results/` and the root-level `qkd_*.csv`), so the project root must be the current directory. The published-figure CSVs stay in the root because the figure scripts and the E91 table script read them by bare name.
+> **Always run scripts from the project root**, e.g. `python src/ci_reruns.py` — never `cd src` first. Every script resolves data paths relative to the working directory (`data/` and `results/`), so the project root must be the current directory.
 
 ```
 .
@@ -28,11 +28,11 @@ All simulation and analysis code lives in **`src/`**. The scripts are flat sibli
 │
 ├── src/                                   # ── ALL SOURCE (run from root: `python src/<script>.py`) ──
 │   │  · core simulation ·
-│   ├── detection_aware_qkd_varying_eve.py # BASE MODULE + Experiment 1 (sweep over f)  -> qkd_varying_eve.csv
+│   ├── detection_aware_qkd_varying_eve.py # BASE MODULE + Experiment 1 (sweep over f)  -> data/qkd_varying_eve.csv
 │   ├── ibm_noise_fetch.py                 # Utility: verify IBM connection / fetch device noise
 │   │  · E91 calibrated-threshold (S*) pipeline ·
-│   ├── e91_adaptive_threshold.py          # Calibrate S* per profile; FNR-vs-f  -> qkd_e91_calibrated.csv, qkd_e91_miscalibration.csv
-│   ├── e91_resource_cost_calibrated.py    # E91 K-sweep under calibrated S*      -> qkd_e91_resource_cost_calibrated.csv
+│   ├── e91_adaptive_threshold.py          # Calibrate S* per profile; FNR-vs-f  -> data/qkd_e91_calibrated.csv, data/qkd_e91_miscalibration.csv
+│   ├── e91_resource_cost_calibrated.py    # E91 K-sweep under calibrated S*      -> data/qkd_e91_resource_cost_calibrated.csv
 │   ├── e91_resource_cost_sstar.py         # Task 1: S* lookup + fixed-2.0 flag   -> results/qkd_e91_resource_cost_sstar.csv,
 │   │                                      #          + SKR operating points         results/qkd_e91_skr_operating_points.csv
 │   ├── e91_summary_table_calibrated.py    # Prints the 3 E91 summary-table numbers under S*
@@ -43,12 +43,12 @@ All simulation and analysis code lives in **`src/`**. The scripts are flat sibli
 │   ├── build_results_md.py                # Rebuild results/results.md from existing CSVs (no simulation)
 │   └── results_md.py                      # Shared helper: idempotent results/results.md section writer
 │
-│  ── DATA: root-level CSVs (CWD-relative; read by figures/ and the E91 scripts) ──
-├── qkd_varying_eve.csv                    # Experiment 1 output (fixed-threshold sweep over f)
-├── qkd_resource_cost.csv                  # sample-size (K) sweep output
-├── qkd_e91_calibrated.csv                 # per-profile S* calibration
-├── qkd_e91_miscalibration.csv             # S* miscalibration FPR/FNR
-├── two_step_miscal.csv                    # two-step miscalibration data
+├── data/                                  # ── INPUT/OUTPUT CSVs for the figure pipeline (CWD-relative from root) ──
+│   ├── qkd_varying_eve.csv                # Experiment 1 output (fixed-threshold sweep over f)
+│   ├── qkd_resource_cost.csv              # sample-size (K) sweep output
+│   ├── qkd_e91_calibrated.csv             # per-profile S* calibration
+│   ├── qkd_e91_miscalibration.csv         # S* miscalibration FPR/FNR
+│   └── two_step_miscal.csv                # two-step miscalibration data
 │
 ├── results/                               # Output CSVs + results.md (Tasks 1-4). Committed (see note)
 ├── figures/                               # Figure scripts + generated PDF/SVG/PNG (run: python figures/<script>.py)
@@ -62,10 +62,10 @@ All simulation and analysis code lives in **`src/`**. The scripts are flat sibli
 
 | Location | Files | Read by |
 | --- | --- | --- |
-| **project root** | `qkd_varying_eve.csv`, `qkd_resource_cost.csv`, `qkd_e91_calibrated.csv`, `qkd_e91_miscalibration.csv`, `qkd_e91_resource_cost_calibrated.csv` | the figure scripts in `figures/` (via `../` / `CSV_DIR="."`) and `src/e91_summary_table_calibrated.py` |
+| **`data/`** | `qkd_varying_eve.csv`, `qkd_resource_cost.csv`, `qkd_e91_calibrated.csv`, `qkd_e91_miscalibration.csv`, `qkd_e91_resource_cost_calibrated.csv` | the figure scripts in `figures/` and `src/e91_summary_table_calibrated.py` |
 | **`results/`** | `qkd_e91_resource_cost_sstar.csv`, `qkd_e91_skr_operating_points.csv`, `ci_*.csv`, `finite_key_*.csv` | collected for the manuscript revision (not consumed by the figure scripts) |
 
-> Source code is under `src/`; the root-level data CSVs feed the published figure pipeline and are read by bare (working-directory-relative) name, so they are kept in the root on purpose. New analysis scripts write fresh outputs to `results/`.
+> Source code is under `src/`; the `data/` CSVs feed the published figure pipeline (read/written by working-directory-relative `data/...` paths, so scripts must be run from the project root). New manuscript-revision scripts write fresh outputs to `results/`.
 
 ### Basic Algorithms
 
@@ -124,17 +124,17 @@ Prints library versions and all static configuration facts (shots, transpiler se
 ### 1. Core experiments
 
 ```bash
-python src/detection_aware_qkd_varying_eve.py  # Experiment 1: sweep f  -> qkd_varying_eve.csv
-python Old/detection_aware_qkd_sample_size.py  # Experiment 2: sweep K  -> qkd_resource_cost.csv  (archived script)
+python src/detection_aware_qkd_varying_eve.py  # Experiment 1: sweep f  -> data/qkd_varying_eve.csv
+python Old/detection_aware_qkd_sample_size.py  # Experiment 2: sweep K  -> data/qkd_resource_cost.csv  (archived script)
 ```
 
-Experiment 1 requires an IBM account (it includes the `IBM_Marrakesh` profile). Both stream progress to the console and write their CSV to the root.
+Experiment 1 requires an IBM account (it includes the `IBM_Marrakesh` profile). Both stream progress to the console and write their CSV to `data/`.
 
 ### 2. E91 calibrated-threshold (S*) pipeline
 
 ```bash
 # a) Calibrate S* per noise profile and rerun FNR-vs-f under S*
-python src/e91_adaptive_threshold.py           # -> qkd_e91_calibrated.csv, qkd_e91_miscalibration.csv
+python src/e91_adaptive_threshold.py           # -> data/qkd_e91_calibrated.csv, data/qkd_e91_miscalibration.csv
 
 # b) E91 resource cost (FPR/FNR vs K) and SKR under S*   [Task 1]
 python src/e91_resource_cost_sstar.py          # -> results/qkd_e91_resource_cost_sstar.csv,
@@ -173,13 +173,13 @@ Reads the per-trial CSVs from `results/` and computes, per trial and per configu
 ### 5. Figures
 
 ```bash
-python figures/results_fig.py                  # 5 result figures from the root CSVs
+python figures/results_fig.py                  # 5 result figures from the data/ CSVs
 python figures/fig_e91_calibrated_threshold.py # E91 fixed-vs-calibrated threshold comparison
 python figures/fig.py                          # 7 conceptual / circuit figures
 python figures/fig_pipe.py                     # methodology pipeline figure
 ```
 
-`figures/results_fig.py` reads `qkd_varying_eve.csv`, `qkd_resource_cost.csv`, `qkd_e91_calibrated.csv`, and `qkd_e91_resource_cost_calibrated.csv` from the root and writes `fig_metric_vs_f`, `fig_tradeoff`, `fig_fpr_vs_noise`, `fig_device`, and `fig_resource_cost` (each as PDF, SVG, PNG) into `figures/`. BB84/six-state curves come from the fixed-threshold CSVs; only the E91 **detection** curves are re-read from the calibrated-`S*` CSVs.
+`figures/results_fig.py` reads `qkd_varying_eve.csv`, `qkd_resource_cost.csv`, `qkd_e91_calibrated.csv`, and `qkd_e91_resource_cost_calibrated.csv` from `data/` and writes `fig_metric_vs_f`, `fig_tradeoff`, `fig_fpr_vs_noise`, `fig_device`, and `fig_resource_cost` (each as PDF, SVG, PNG) into `figures/`. BB84/six-state curves come from the fixed-threshold CSVs; only the E91 **detection** curves are re-read from the calibrated-`S*` CSVs.
 
 ### 6. Rebuild `results/results.md` (seconds, no simulation)
 
@@ -238,10 +238,10 @@ Prepare-and-measure runners batch independent qubits in groups of 10 to bound me
 
 | CSV | Columns |
 | --- | --- |
-| `qkd_varying_eve.csv` | `Protocol, Noise_Profile, F_Eve, QBER_Threshold, CHSH_Threshold, Mean_Metric, Std_Metric, Mean_SKR, Std_SKR, FPR, FNR` |
-| `qkd_resource_cost.csv` | `Protocol, K, Trials, FPR, FNR` |
-| `qkd_e91_calibrated.csv` | `Noise_Profile, S_star, S_H_hat, S_H_std, S_f1_hat, S_f1_std, F_Eve, Mean_S, Std_S, Mean_SKR, Std_SKR, FPR, FNR` |
-| `qkd_e91_resource_cost_calibrated.csv` | `Protocol, K, Trials, FPR, FNR` |
+| `data/qkd_varying_eve.csv` | `Protocol, Noise_Profile, F_Eve, QBER_Threshold, CHSH_Threshold, Mean_Metric, Std_Metric, Mean_SKR, Std_SKR, FPR, FNR` |
+| `data/qkd_resource_cost.csv` | `Protocol, K, Trials, FPR, FNR` |
+| `data/qkd_e91_calibrated.csv` | `Noise_Profile, S_star, S_H_hat, S_H_std, S_f1_hat, S_f1_std, F_Eve, Mean_S, Std_S, Mean_SKR, Std_SKR, FPR, FNR` |
+| `data/qkd_e91_resource_cost_calibrated.csv` | `Protocol, K, Trials, FPR, FNR` |
 | `results/qkd_e91_resource_cost_sstar.csv` | `Threshold_Mode, Curve, Channel, P_Noise, F_Eve, Threshold_Value, K, Trials, Rate` |
 | `results/qkd_e91_skr_operating_points.csv` | `Noise_Profile, P_Noise, F_Eve, Pairs, Trials, Mean_SKR, Std_SKR, Mean_S, Std_S` |
 | `results/ci_pertrial_fsweep_ideal.csv` | `Protocol, Channel, P_Noise, F_Eve, Trial, Metric_Name, Metric, SKR, Alarm, Detection_Outcome, N, n_sift, m, n_key, Q, leak_EC` |
@@ -255,7 +255,7 @@ Prepare-and-measure runners batch independent qubits in groups of 10 to bound me
 
 The finite-key fields in the per-trial CSVs (`N, n_sift, m, n_key, Q, leak_EC`) are logged so `finite_key_skr.py` can compute the finite-key length `ℓ = n_key·(1 − 2 H₂(min(Q+μ, ½))) − leak_EC − log₂(2/ε_sec) − log₂(1/ε_cor)`, with `μ = √(ln(1/ε_PE)/2m)` and `n_key = n_sift − m`.
 
-In `qkd_varying_eve.csv`, `Mean_Metric` is the mean QBER for BB84/six-state and the mean CHSH `S` for E91; `FPR` is populated only on honest rows (`F_Eve = 0`) and `FNR` only on attacked rows (`F_Eve > 0`).
+In `data/qkd_varying_eve.csv`, `Mean_Metric` is the mean QBER for BB84/six-state and the mean CHSH `S` for E91; `FPR` is populated only on honest rows (`F_Eve = 0`) and `FNR` only on attacked rows (`F_Eve > 0`).
 
 > **Why `results/` is committed (not gitignored).** The CSVs are small (kilobytes), the paper links this repo and cites exact numbers, and `results.md` is meant to be readable on GitHub without cloning and running. So `results/` and its outputs are tracked. Only `__pycache__/` and editor cruft are gitignored.
 
